@@ -1,0 +1,4430 @@
+
+
+
+
+
+                       ELF SYSTEM PROGRAMMER'S GUIDE
+
+
+
+
+                             September 1,  1974
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                             D. L. Retz, Ph.D.
+                               J. R. Miller
+                               J. L. McClurg
+                               B. W. Schafer
+
+
+
+
+
+
+
+
+
+
+                 Speech Communications Research Lab., Inc.
+                           800-A Miramonte Drive
+                      Santa Barbara, California 93109
+                               (805) 965-3011
+
+
+
+
+
+
+        This work is supported by the Advanced Research Projects Agency,
+        through  Contract  No.   N00014-73-C-0221,  administered  by the
+        Office of Naval Research.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page   2
+
+
+
+                       ELF SYSTEM PROGRAMMER'S GUIDE
+
+                                  CONTENTS
+
+
+
+        I.              Function of this Manual
+
+        I.1             ELF System Overview (System Function)
+
+        I.2             Organization of the ELF System
+
+
+
+        II.1            The ELF Kernel - An Introduction
+
+        II.1.1          Processor Management Techniques
+
+        II.1.1.1        Process Synchronization Techniques
+
+        II.1.1.2        Processor Scheduling
+
+        II.1.1.3        Protection Mechanisms
+
+        II.1.1.4        Resource Allocation Techniques
+
+        II.1.2          Storage Management Techniques
+
+        II.1.2.1        Virtual Storage Management
+
+        II.1.2.2        Control Tables for Storage Management
+
+        II.1.2.2.1      The Physical Storage Table (PST)
+
+        II.1.2.2.2      The Virtual Storage Map (VSM)
+
+        II.1.3          The ELF I/O System
+
+        II.1.3.1        I/O Primitives for ELF Processes
+
+        II.2            Writing I/O Drivers for ELF
+
+        II.3            ELF Kernel Primitives
+
+        II.4            ELF System Tables and Data Structures
+
+        II.5            Kernel Process Error Codes
+
+
+
+        III.1           The ELF Network Control Program
+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page   3
+
+
+
+        III.1.1         NCP Introduction
+
+        III.1.2         Definition of Terms
+
+        III.1.3         Means of Attachment to the Network
+
+        III.1.4         NCP Primitives
+
+        III.1.5         NCP Parameter Settings
+
+        III.2           The XNCP Description
+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page   4
+
+
+
+        I.  ELF System Programmer's Guide - Function
+
+
+             This manual presents a structural view of the ELF Operating
+        System  and  is  intended  to serve as a reference guide for ELF
+        System  programmers.    The   manual   contains   a   functional
+        description of the ELF structure, an index of system primitives,
+        and a view of system data structures.
+
+
+
+        I.1 ELF System Overview
+
+             ELF is  an  operating  system  for  the  Digital  Equipment
+        Corporation  PDP-11  computers.  The system has been designed to
+        allow researchers to make use of facilities  which  exist  in  a
+        distributed  network  of  computers (the ARPA network) for tasks
+        which require real-time data acquisition or interactive  display
+        capability.  The system serves a number of simultaneous users at
+        terminals,  allowing  each  to  access  time-sharing  facilities
+        available on the network.  
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page   5
+        ELF System Structure
+
+
+        I.2 Organization of the ELF System
+
+
+             The ELF system has a hierarchical structure.  At the center
+        of  the system exists a set of modules, collectively referred to
+        as the kernel, which perform tasks of resource management  in  a
+        multi-processing  environment.   The  kernel  provides  a set of
+        primitive calls  for  outer-level  procedures,  performing  such
+        tasks  as  the  creation  of processes, process synchronization,
+        storage allocation, and sharing of an interval timer.
+
+
+             System Procedures outside of the kernel perform tasks  such
+        as  the interpretation of user requests at terminals (the EXEC),
+        controlling communication with the ARPANET (the Network  Control
+        Program)), and maintenance of the system file structure.
+
+             Kernel  primitives  fall  in  three  categories:  Processor
+        Management,  Storage  Management,  and  Input/Output Management.
+        Processor management primitives allow processes to  be  created,
+        vie  for  processor service, intercommunicate, or be terminated.
+        Storage Management Primitives control the allocation of  storage
+        within  an  address  space;  when  the  PDP-11 memory management
+        option is present, storage  management  primitives  control  the
+        mapping  between  a process' address space and physical storage.
+        In this case, storage management primitives allow  the  creation
+        of a set of virtual address spaces, and perform tasks of storage
+        allocation within each address space.   Input/Output  primitives
+        control   the  management  of  I/O  devices,  scheduling  device
+        requests performed by  calling  processes,  and  performing  the
+        address-mapping   tasks   necessary  when  the  virtual  storage
+        capability is present.
+
+             Kernel procedures  reside  in  a  fixed  area  of  physical
+        storage,  and  are  distinguished  by  the  fact that the PDP-11
+        processor runs in privileged, or  "kernel"  mode  (on  11/40  or
+        /45).    This   provides   a   protection  scheme,  under  which
+        outer-level procedures may be debugged  without  destroying  the
+        ELF environment.
+
+
+             The EXEC consists of  a  set  of  modules  which  interpret
+        commands  received  from  user's  terminals,  and allow users to
+        access facilities available  on  the  network.   If  the  memory
+        management  option is installed, the EXEC procedures reside in a
+        unique address space.  Additional EXEC  commands  then  allow  a
+        user  to create a new address space, cause programs to be loaded
+        into the address space from a server on the network, and start a
+        local process within that address space.
+
+
+             The Network Control Program (NCP) allows processes  running
+        in  the  ELF system to establish data-paths, or "connections" to
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page   6
+        ELF System Structure
+
+
+        processes running in local or remote processors on the  network.
+        The NCP provides the set of "third-level" protocol primitives to
+        local processes,  such  as  CONNECT,  LISTEN,  CLOSE,  etc.   In
+        addition  to these, local processes may make calls to the NCP to
+        follow  the  standard  Server-  or  User-   Initial   Connection
+        Protocol.
+
+
+             The storage management facilities which are included in the
+        kernel,   coupled  with  PDP  11/40  or  /45  memory  management
+        hardware, make possible  the  addition  of  new  facilities  for
+        checkout  of  programs within the system framework.  This is the
+        means by which higher-level network protocols may be  developed,
+        or  supervisory  tasks  of  peripheral  signal processors may be
+        performed, in  a  way  which  allows  effective  utilization  of
+        network resources.
+
+
+
+             The ELF system is written in  MACRO-11  Assembly  language.
+        The  system  is  composed  of  a number of logically independent
+        modules, which are separately  compiled  and  bound  to  form  a
+        single  loadable  file.  Support software for system development
+        exists at various PDP-10 sites on  the  ARPANET.   Compatibility
+        exists  for  using  various  other  languages,  such  as BCPL or
+        BLISS-11, in making extensions of the system.
+
+
+             Hardware required for the ELF varies, according to  desired
+        system  capability.  The minimal amount necessary to support the
+        ELF kernel and NCP is 12K.  For terminal access to the net,  and
+        the  ability  to  obtain  listings  (provided  a line-printer is
+        attached) 16K is required.   Either  of  these  tasks  would  be
+        adequately supported by a PDP-11/10, or larger, processor.
+
+             Additional system flexibility is gained when the  processor
+        is  a  PDP-11/40  or  /45 with the memory management option.  In
+        this configuration, it is recommended that the system  have  32K
+        of memory.  The existence of secondary storage on the ELF is not
+        a basic requirement.  It is useful in the case of systems having
+        virtual  storage, to allow automatic swapping of pages from main
+        storage.  It should be emphasized  that  the  presence  of  disk
+        storage  is  not  mandatory  in virtually addressed systems; the
+        lack of secondary storage simply prevents automatic  replacement
+        of  pages  in  main storage, while the protection and relocation
+        features of the memory management hardware are still utilized.
+
+             I/O devices supported under the  ELF  system  are  Dectape,
+        fixed-head disk (RF-11), removable cartridge and disk pack (RK05
+        and RP03), DEC line printers, and the various  line  controllers
+        and multiplexers.  
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page   7
+        ELF KERNEL -- INTRODUCTION
+
+
+        II.1 The ELF Kernel -- An Introduction
+
+             This chapter describes the portion of the ELF system  which
+        performs  resource  management  tasks  necessary  to  support  a
+        multiprocessing environment.  This section, referred to  as  the
+        kernel,  concerns itself with three primary areas.  The first of
+        these, Processor Management, controls distribution of the PDP-11
+        processor  among  a  number  of processes, and provides means by
+        which processes may synchronize  and  allocate  resources.   The
+        second  major portion of the kernel is Storage Management, which
+        handles the allocaton of primary, secondary, and virtual storage
+        available  to  processes  in the system.  The third portion, I/O
+        Management,  controls  the  interaction  between  processes  and
+        external  devices (I/O devices), and additionally provides means
+        for communication of data between processes.
+
+
+        II.1.1 Processor Management Techniques
+
+             The  kernel  provides  of  a  set  of  system   calls,   or
+        "primitives",  which  allow  processes  to  be  created, vie for
+        processor service according to priority, inter-communicate,  and
+        be   terminated.   The  term  process  used  here  describes  an
+        autonomous sequence  of  states  brought  about  by  the  PDP-11
+        processor.   In  the ELF system, a process is characterized by a
+        virtual program-counter, a set of general-purpose  registers,  a
+        stack,  and  process-owned  storage  areas.  Processes are given
+        control of the processor by a single controlling program, called
+        the  scheduler.   Processes  are  said  to  be  in  a "ready" or
+        "waiting" state.  They are  created  in  the  ready  state,  and
+        remain ready until they explicitly block themselves by calling a
+        system primitive for synchronization or resource allocation.
+
+
+        II.1.1.1 Process Synchronization
+
+             Each system process has an associated  input  queue,  which
+        consists  of a list of "messages" sent to it by other processes.
+        A "message" in this case is a 24-bit field which is fetched from
+        the  input  queue  when  the process WAITs, and is placed on its
+        input queue by some  other  process  which  invokes  the  SIGNAL
+        primitive.   The  process  may be thus viewed as a machine which
+        interprets instructions fetched by means of the WAIT  primitive.
+        Processes  enter  the waiting state if they WAIT and their input
+        queue is empty; they enter the ready  state  when  an  entry  is
+        placed on their input queue by the SIGNAL primitive.
+
+             When a process awakens, it receives the 24-bit  message  in
+        addition  to  the  8-bit  name (process ID) of the process which
+        SIGNALled  it.   In  general,  the  24-bit  message   field   is
+        interpreted  by  ELF  system processes as an 8-bit op-code and a
+        16-bit  data  field.   While  this  assignment  of  bits  is   a
+        convention  for  system processes, higher-level (user) processes
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page   8
+        ELF KERNEL -- INTRODUCTION
+
+
+        which choose to inter-communicate using SIGNAL and WAIT may  use
+        this field arbitrarily.
+
+
+        II.1.1.2 Processor Scheduling
+
+             Internal system tables reflect the state of a process,  and
+        control  its  priority  for processor service, relative to other
+        processes in the system.  The  ability  of  a  process  to  gain
+        control  of the processor is a function of the priority queue in
+        which is runs, and its order within that  queue.   The  priority
+        queue  in  which  the  process  resides  is determined when that
+        process is created.  The priority of a process within its  queue
+        is determined according to its behavior; it is re-evaluated at a
+        regular interval, and its value is inversely proportional to the
+        demand  made  by  the  process  for  processor  service over the
+        interval.
+
+
+        II.1.1.3 Protection Mechanisms
+
+             Because processes rely on the validity of messages received
+        on  their  input  queues,  a  protection  scheme  is required to
+        prevent   processes   from   receiving   messages   from   other
+        non-authorized  processes.   This  mechanism  is  implemented by
+        means  of  a  ring  structure,  in  which  each  process  has  a
+        "capability  level",  determined  as  a  function of its current
+        processor mode (i.e., kernel/user)  and  a  capability  variable
+        associated   with  the  process.   The  capability  variable  is
+        assigned when the process is created,  and  may  change  as  the
+        process  makes  calls  to  various  procedures  in the operating
+        system.  The "capability level" of the process evaluates to 0 if
+        the process is in kernel mode, or to the value of its capability
+        variable if in user  mode.   The  access  rights  of  a  process
+        executing  at  a  given  capability level are a subset of rights
+        given at lower levels.
+
+
+        II.1.1.4 Resource Allocation Techniques
+
+             Processes request allocation of system resources  by  means
+        of   binary   semaphores.    Kernel   primitives  allow  dynamic
+        assignment of semaphore names, and provide Dijkstra's  P  and  V
+        operations  on  those  semaphores.  The P primitive is used by a
+        process to obtain ownership of a resource, which  is  identified
+        by  a  specified semaphore name (an 8-bit code).  The process is
+        placed in a waiting state  in  the  event  that  it  requests  a
+        resource  which is owned by another process; it awakens when the
+        other process relinquishes  the  resource  by  means  of  the  V
+        primitive.   When  a  process  remains waiting for the resource,
+        other processes may place event descriptors on its input  queue;
+        the process may fetch the queued messages from its queue once it
+        obtains ownership of the resource.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page   9
+        ELF KERNEL -- INTRODUCTION
+
+
+             Two  additional  primitives  exist   for   utilization   of
+        semaphores.   A process may request notification of ownership of
+        a resource by means of the REQUEST primitive.  The  process,  in
+        this  case, specifies a 24-bit message it wishes to receive when
+        the  resource  is  obtained.   This  primitive  allows   various
+        permutations  on  Dijkstra's P primitive (such as Multiple-P) to
+        be constructed.  A second primitive, referred to as Exhaustive V
+        (EXV),  effectively V's a semaphore until there are no processes
+        queued on the semaphore wait-list.  This primitive  is  utilized
+        in  cases  when semaphores are used for notification of a set of
+        processes that a specified event has occurred (such as a process
+        termination);  it  is usually the case that these processes have
+        REQuested such information.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  10
+        ELF STORAGE MANAGEMENT TECHNIQUES
+
+
+        II.1.2 Storage Management Techniques
+
+             Based on the PDP-11's 16 bit architecture,  a  process  may
+        generate   references   to  a  possible  32,768  different  word
+        addresses  in  memory.   Because  there  is  not  necessarily  a
+        one-to-one  correspondence  between these addresses and physical
+        storage addresses, we say that the  process  has  an  associated
+        32,768-word  virtual  address space.  An address map defines the
+        relation between the user's virtual storage and physical storage
+        (e.g.,  core,  disk)  addresses.  A specific address map becomes
+        associated with a process when  the  process  is  created.   The
+        address  map  currently  in  use  is  determined  by the current
+        processor mode  (kernel  or  user)  and  the  process  currently
+        running.   Any  number  of  address  spaces  may  be defined for
+        processes running in user mode; there is only one address  space
+        defined in kernel mode, and this is utilized for system (kernel)
+        primitives.
+
+             The processor switches from kernel mode to user  mode  when
+        it  gives control to a user process.  It switches from user mode
+        to kernel mode when a user process makes a  system  call  or  is
+        interrupted.
+
+             If a user process is the "sole owner" of  an  address  map,
+        then  its  address space is protected from modification by other
+        processes.  Likewise, it may not  modify  physical  storage  not
+        contained in its own address space.  When a process makes a call
+        to a system primitive, the  system  performs  some  task  as  an
+        extension  of  that  process.  Addresses are mapped according to
+        the user's address map while the user's program is running,  and
+        are  mapped according to the kernel address map when the program
+        makes  a  kernel  primitive  call.   It   is   the   scheduler's
+        responsibility  to  setup  the  hardware registers in the PDP-11
+        memory management unit according to the process' storage map.
+
+             Processes may share a common virtual address space (address
+        map);  the  address  map  to  be  associated  with  a process is
+        assigned when the process is created.  (Processes may thus share
+        virtual storage in the same fashion as they might share physical
+        storage.)
+
+             This  section  describes  techniques   used   for   storage
+        allocation   in   ELF   systems,  and  particularly  deals  with
+        establishment of a virtual storage structure for multiprocessing
+        in   the   PDP-11/40  and  PDP-11/45  systems  with  the  memory
+        management option.  The storage management portion  of  the  ELF
+        kernel   allows   the   creation  of  a  number  of  independent
+        32,768-word virtual address spaces,  and  controls  the  mapping
+        between virtual storage addresses and physical storage addesses.
+        Storage is divided into 4096-word pages, and the  PDP-11  memory
+        management  unit  is  used to perform dynamic relocation of page
+        addresses.  The mapping between  virtual  and  physical  address
+        spaces  is transparent to processes in the system; thus, storage
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  11
+        ELF STORAGE MANAGEMENT TECHNIQUES
+
+
+        accessed by processes in differing address spaces is  completely
+        protected.
+
+        II.1.2.2 Control Tables for Storage Management
+
+             Two types of tables  are  used  in  providing  the  virtual
+        storage  structure.   The  first  of these is clled the Physical
+        Storage Table (PST), and reflects the state of  physial  memory.
+        The  second is referred to as a Virtual Storage Map (VSM); a VSM
+        describes the state of each virtual address space.
+
+        II.1.2.2.1 The Physical Storage Table (PST)
+
+             The PST is used to indicate the  status  of  each  physical
+        page  frame  in  core.  (Pages are 4096 words in length).  It is
+        composed of three sub-tables: PST0,  PST1,  and  PST2;  each  is
+        indexed   by   a   page   frame   number   in  physical  memory.
+        (Essentially, this is identical to  a  single  table  of  3-word
+        entries.)  Each  entry  in  PST0,  PST1, and PST2 is one word in
+        length; the tables are physically contiguous, and resident in  a
+        locked page in kernel space.
+
+                         1    7   1    7
+                        !-----------------!
+        PST0:  Page 0   !W! Lock !A!  Age !
+                        !-----------------!
+                    1   !                 !
+                        !-       .       -!
+                    2   !        .        !
+                        !-       .       -!
+                    3   !        .        !
+                        !-       .       -!
+                    4   !        .        !   PST0  Format,
+                        !-       .       -!
+                    5   !        .        !   48K Configuration
+                        !-       .       -!
+                    6   !        .        !   (12 Page frames
+                        !-       .       -!    of main storage.)
+                    7   !        .        !
+                        !-       .       -!
+                    8   !        .        !
+                        !-       .       -!
+                    9   !        .        !
+                        !-       .       -!
+                    10  !        .        !
+                        !-       V       -!
+                    11  !                 !
+                        !-----------------!
+
+
+        PST0 Entry Description:
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  12
+        ELF STORAGE MANAGEMENT TECHNIQUES
+
+
+             "W", (Bit 15), when set, indicates that the page frame  has
+        been  modified.   If  the  page  is  to  be  purged from primary
+        storage, the "W"-bit is tested to determine if the page  has  to
+        be written on secondary storage.
+
+             "Lock", (Bits 14-8), is a count specifying  the  number  of
+        processes  currently requesting that this page be locked in core
+        (not swapped out).  This is incremented by system routines  when
+        they perform functions, such as I/O, which require that the page
+        remain  resident.   The  "Lock"   count   is   incremented   and
+        decremented   by   the  system  primitives  $LOCK  and  $UNLOCK,
+        respectively.
+
+             "A", (Bit 7) when set,  indicates  that  the  corresponding
+        page  has  been  accessed.   It  is used at certain intervals to
+        update the "Age" field, described below.
+
+             "Age", (Bits 6-0), is a 7-bit  field  specifying  the  page
+        age,  as  determined  by the system memory management algorithm.
+        The page in memory with the minimum "Age" value is the one to be
+        chosen to be purged from memory when necessary.
+
+             PST1 reflects the utilization  of  physical  storage.   The
+        high-order  ("F")  bit of each entry indicates that the physical
+        page frame is free (not  occupied  by  a  virtual  page).   Thus
+        memory  management  primitives test for negative entries in PST1
+        to find an unused page.  When the "F" bit is zero, the low-order
+        11  bits  contain  a virtual page address (VPA).  A virtual page
+        address consists of a 3-bit page  number  and  an  8-bit  number
+        which uniquely identifies a Virtual Storage Map (address space).
+        Virtual Storage Maps are described in the next section.
+
+             PST2  indicates   the   correspondence   between   physical
+        (primary)  storage  and  secondary  storage.   When  a  page  is
+        resident in memory, PST2 contains the secondary storage  address
+        to be used when the page is to be removed from memory.
+
+        II.1.2.2.2 The Virtual Storage Map (VSM)
+
+             A Virtual Storage Map defines the  relationship  between  a
+        32K  virtual  address  space  and  its  utilization  of physical
+        storage.  The VSM consists of two 8-word tables, each  of  which
+        is  indexed  by  the  high  order  3  bits  of a virtual address
+        generated  by  a  process.   (Thus,  each  entry  in  the  table
+        corresponds  to  a  4096-word  page  in  the 32,768-word virtual
+        address space.) The first 8-word table in the VSM describes  the
+        correspondence  between  virtual  storage  and  primary  storage
+        (core), and also reflects the status of  each  page  (e.g.,  its
+        residency).     The    second   8-word   table   describes   the
+        correspondence between virtual storage  and  secondary  storage.
+        Each Virtual Storage Map (hence, each address space) is named by
+        an 8-bit identifier, called the VSM ID.  Thus, a virtual address
+        in  the  system  formally consists of a 24-bit number containing
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  13
+        ELF STORAGE MANAGEMENT TECHNIQUES
+
+
+        the 8-bit address space name (VSM ID), a 3-bit page number,  and
+        a 13-bit offset within a page.  
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  14
+        ELF I/O SYSTEM -- INTRODUCTION
+
+
+        II.1.3 The ELF I/O System
+
+             The ELF  I/O  system  provides  an  interface  between  ELF
+        programs  (processes)  and  external devices, such as terminals,
+        disks,  line  printers,  etc.   The  I/O  system  performs   the
+        following functions:
+
+         1.  Coordinates requests for physical I/O transactions among  a
+             set of ELF system processes, synchronizing the I/O requests
+             with external devices.
+         2.  Provides device independence, allowing processes to  select
+             a specific device by means of a "device-address".
+         3.   Performs  translation  necessary  in  virtual  memory  ELF
+             systems   between  virtual  and  physical  storage  address
+             spaces.
+
+             ELF processes request physical I/O transactions by means of
+        a  single  system primitive, Start-I/O.  The primary function of
+        Start-I/O (SIO) is to enqueue a request specifying a transfer of
+        data between a virtual storage address and a device address.  In
+        addition, the SIO primitive allows the  transfer  of  data  thru
+        pseudo-devices,  called  "ports",  which  facilitate transfer of
+        data between processes (inter-process communication).
+
+             When a program requests an I/O transaction by means of SIO,
+        it  uses  a  control table called an I/O Request Block (IORB) to
+        specify all parameters and addresses needed  to  carry  out  the
+        request.   While  the  SIO  primitive makes requests for a given
+        device,  the  requests  are  carried  out  according  to  device
+        availability.  It is the responsibility of kernel I/O management
+        processes to fetch entries from various device  request  queues,
+        and initiate device actions as devices become ready.  The kernel
+        I/O processes, called I/O Auxiliaries,  or  IOX's,  perform  all
+        necessary  translation  between  virtual  and  physical  storage
+        address  space,  and   initiate   device   action   by   calling
+        special-purpose procedures called "device-drivers".
+
+             Device drivers perform functions relating to  a  particular
+        type  of  device.   A  device  driver must exist for each device
+        which has unique programming characteristics, although more than
+        one  device  of  the same type is usually controlled by a single
+        I/O device driver procedure (for example, a terminal driver  may
+        control 16 terminals).
+
+             ELF devices  are  assigned  names,  or  "device  addresses"
+        consisting  of  a  generic  name and a unit number.  The generic
+        name consists of 3 characters packed in RAD50  format;  examples
+        are  TTY,  IMP,  MTA,  DTA  etc.   The unit number consists of a
+        16-bit unsigned integer.  In the current implementation  of  ELF
+        I/O, there exists on IOX process for each generic device name.
+
+             All information relating to a particular device address  is
+        centrally  located  in  a system table called the Device Control
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  15
+        ELF I/O SYSTEM -- INTRODUCTION
+
+
+        Table, or DCT.  The DCT allows complete separation of procedures
+        handling devices and data relating to those devices.  DCT's have
+        varying formats, depending on a distinction of  device  classes.
+        Classes  are  assigned  to  character-at-a-time devices (such as
+        terminals), byte-addressible Direct Memory Access devices  (such
+        as  fixed-head  disks),  block  addressible DMA devices (such as
+        moving-head disks), and inter-process ports.  
+
+             A  second  system  control  table  is   used   to   contain
+        information  relevant to specific device interupts.  This table,
+        called the Interrupt Control Table (ICT), contains  the  address
+        of  the  interrupt  vector  and the address of the corresponding
+        interrupt service routine.  Each of these tables is  defined  by
+        system macro calls, which provide a set of names for the various
+        fields contained in the control tables.
+
+             An I/O device is added to the ELF  system  by  defining  an
+        appropriate  Device  Control Table, Interrupt Control Table, and
+        Device Driver procedures.  The control  tables  are  defined  by
+        means  of  macro  calls,  which  generate  proper table linkages
+        according to specified macro  parameters.   Device  drivers  are
+        linked  with  the set of modules which form the kernel.  Drivers
+        are reentrant, and therefore are sharable by a  set  of  devices
+        having equivalent characteristics.
+
+             Each device in the  system  is  assigned  a  device  class,
+        determined  by  the mode of data transfer between the device and
+        main storage.  "Character" oriented devices  perform  I/O  on  a
+        character-at-a-time  basis;  transfer  to this type of device is
+        performed  under  control  of  the  PDP-11  processor   (usually
+        referred  to  as  programmed  data transfer).  The device driver
+        procedures are responsible for controlling the transfer of  data
+        to or from the device.
+
+             A second type of device is that which performs transfer  of
+        data  to  or  from  main  storage  directly under device control
+        (Direct Memory Access, or  DMA  devices).   In  this  case,  one
+        device  driver procedure initiates a device action, and a second
+        driver procedure (the interrupt handler) receives control on its
+        completion.
+
+             A third device class is the set  of  pseudo-devices  called
+        "Inter-Process  Ports"  (IPP's)  which  facilitate inter-process
+        communication.  Inter-Process Ports have  no  associated  device
+        driver;  in  this  case,  data  transfers  are  controlled  by a
+        specific I/O Auxiliary process.
+
+             Each of the above device classes has  a  corresponding  I/O
+        auxiliary  procedure.   The  primary  function of the system I/O
+        Auxiliary process is to manage the mapping between I/O  requests
+        and physical storage, allowing I/O requests to occur across page
+        boundaries in a fashion which  is  transparent  to  the  caller.
+        There exists one I/O auxiliary procedure per device class.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  16
+        ELF I/O SYSTEM -- INTRODUCTION
+
+
+             With the above overview in  mind,  the  following  material
+        presents  a more detailed description of ELF I/O control tables,
+        I/O driver procedures, and I/O primitives as they appear to user
+        processes.
+
+
+
+        II.1.3.1 I/O Primitives for ELF Processes
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  17
+        ELF I/O SYSTEM -- INTRODUCTION
+
+
+             The following describes the ELF I/O system as it appears to
+        ELF processes.  The primitives for performing I/O-related tasks,
+        and the necessary control tables for  communicating  information
+        to the I/O primitives are discussed.
+
+             ELF processes perform physical transfers of data to or from
+        I/O  devices  by  means of the Start-I/O ($SIO) primitive.  $SIO
+        places an I/O request on  a  request  queue  associated  with  a
+        specified device, and returns control to its caller immediately.
+        Parameters are passed to the Start-I/O primitive by means of  an
+        I/O Request Block (IORB), shown below.  In the IORB, the process
+        specifies a three-character RAD50 device  name,  a  device  unit
+        number,  an  op-code  with  which  it  wishes to be signalled on
+        completion, a buffer address, a function code, a byte count, and
+        an  optional  device  byte  address  .  The I/O system returns a
+        device status code and number of bytes actually transferred upon
+        completion  of  the  operation.   When  the I/O request has been
+        carried out, the  originating  process  is  signalled  with  the
+        op-code  which  it  specified  when  the  request  was  made; in
+        addition, the I/O system passes the address of an IORB  when  it
+        signals  the  process.)  Then, for example, the process uses the
+        op-code to determine that an I/O operation  has  completed,  and
+        the IORB address specifies which request has completed.
+
+             The IORB is illustrated below:
+
+
+                                        !----------------!
+                           IORB:        !      NAME      !
+                                        !----------------!
+                                        !      UNIT      !
+                                        !----------------!
+                                        !  VSM   !   OP  !
+                                        !----------------!
+                                        !      ADDR      !
+                                        !----------------!
+                                        !      FUNC      !
+                                        !----------------!
+                                        !       BR       !
+                                        !----------------!
+                                        !      STAT      !
+                                        !----------------!
+                                        !       BX       !
+                                        !----------------!
+                                        !      BYTEH     !
+                                        !----------------!
+                                        !      BYTEL     !
+                                        !----------------!
+
+
+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  18
+        ELF I/O SYSTEM -- INTRODUCTION
+
+
+             NAME is the RAD50-coded name of the device,  such  as  TTY.
+        The  UNIT   is  a  non-zero  binary  number  which  identifies a
+        specific unit on a given device.  Thus, an  I/O  device  in  the
+        system has a 32-bit name consisting of a device name/unit number
+        pair.
+
+             Each I/O device in ELF has  an  associated  request  queue;
+        entries  are placed on the request queue when the process issues
+        the $SIO primitive, and are removed as requests  are  satisfied.
+        Thus  a process may make a number of requests, each specified by
+        a unique IORB.
+
+             The op-code field  specified  in  the  IORB  indicates  the
+        op-code  with  which the process is to be signalled when the I/O
+        operation completes.
+
+             VSM is the 8-bit virtual  storage  map  identifier  of  the
+        buffer to which I/O is to take place.  When the VSM is specified
+        as 0, the VSM is taken to be that of the calling process' active
+        VSM (current address space).  User processes using $S10 to carry
+        out I/O operations should specify a VSM value of 0.
+
+             ADDR is the address of a buffer to/from which data is to be
+        transferred.
+
+             FUNC is a 16-bit function code to indicate a  specific  I/O
+        command,   such   as  read  or  write.   The  following  device-
+        independent codes have been assigned:
+
+               0  =  No operation
+               1  =  Read
+               2  =  Write
+               3  =  Special Functions
+               4  =  Write Check
+
+
+             The low byte of the function word is  reserved  for  device
+        independent   codes;   the   high  byte  may  be  used  to  pass
+        device-specific function information.
+
+             BR  is  the  number  of  8-bit  bytes   requested   to   be
+        transferred.   In  the  case of output transfers, this is always
+        the exact number of bytes  transferred.   For  input  transfers,
+        this  is  the  maximum number to be transferred; the BX field of
+        the IORB indicates the actual number of bytes  transferred  when
+        the operation is completed.
+
+             STATUS is a 16-bit field  which  indicates  the  completing
+        status  of  the I/O request.  This always has bit 7 set when the
+        operation is completed, and bit 15 set when there is  an  error.
+        The  remaining  bits  in the low byte specify device independent
+        error classes; these consist of  programming  error  and  device
+        error.   Program  errors  are  a  result  of  such things as I/O
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  19
+        ELF I/O SYSTEM -- INTRODUCTION
+
+
+        requests to invalid devices.  Device errors  occur  for  reasons
+        such  as parity errors, or data over-runs.  The bits in the high
+        byte indicate  device  dependent  information  such  as  "parity
+        error" or "off-line".
+
+             BYTEH and BYTEL are the high and low portions respectively,
+        of  the  device  byte  address.   This  field  applies  only  to
+        addressable devices such as disks, dectapes, and drums.  
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  20
+        ELF I/O SYSTEM -- INTRODUCTION
+
+
+        Example:
+
+             The following subroutine reads a record from disk block 1
+        and writes it on Magtape unit 1 (no device byte address
+        associated).
+
+        IOOP    =       2               ;OP-CODE TO AWAIT FOR I/O
+
+        RDW:    $SIO    #IORBI          ;START I/O FROM DISK
+                $WAITS  #IOOP           ;WAIT (SPECIFIC) FOR COMPLETION
+                $SIO    #IORBO          ;INIT I/O TO TAPE
+                $WAITS  #IOOP           ;WAIT (SPECIFIC) FOR OUTPUT
+                RTS     PC              ;RETURN TO CALLER
+
+        IORBI:  .RAD50  'DSK'           ;DISK
+                .WORD   0               ;UNIT 0
+                .BYTE   IOOP,0          ;OP-CODE TO BE RECEIVED
+                .WORD   BUFFER,1        ;BUFFER ADDRESS, FUNCTION = READ
+                .WORD   128.            ;128 BYTES
+                .WORD   0,0             ;STATUS ,  BYTES XFERRED
+                .WORD   0,512           ;512 BYTES PER BLOCK
+
+        IORBO:  .RAD50  'MTA'           ;MAG TAPE
+                .WORD   1               ;UNIT 1
+                .BYTE   IOOP,0          ;OP-CODE TO BE RECEIVED
+                .WORD   BUFFER,2        ;BUFFER ADDRESS, FUNCTION
+                .WORD   128.            ;128. BYTE WRITE
+                .WORD   0,0             ;STATUS, BYTES XFERRED
+                .WORD   0,0             ;DEVICE ADDRESS (NOT USED FOR 
+                                         SEQ DEV
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  21
+        ELF I/O SYSTEM -- INTRODUCTION
+
+
+        II.2 Writing I/O Drivers for ELF
+
+
+             Device Drivers are modules which are used to interface  the
+        kernel I/O procedures with the PDP-11 hardware I/O devices.  The
+        device driver is called upon by an I/O auxiliary  (IOX)  process
+        in the ELF I/O system to initiate I/O requests to a device.  All
+        necessary information for the driver is contained in the  Device
+        Control  Table  (DCT)  belonging to the particular device.  When
+        the I/O is complete, the driver returns  status  information  in
+        the  DCT.   This  status  information is then passed back to the
+        original requesting process so it can determine that the I/O was
+        completed successfully.
+
+
+        II.2.1 Primary Tasks of Device Drivers
+
+             There are three tasks performed  by  device  drivers.   The
+        task  a driver performs is selected by one of three driver entry
+        points.
+
+        II.2.1.1.  Device Initialize:
+
+             The first task is the initialization routine.  This routine
+        is  called  by  an  IOX  by  means of the PDP-11 Jump-Subroutine
+        instruction to the  driver's  entry  point  for  initialization.
+        This  routine is called when the first I/O request occurs to the
+        device after the system is started.  It performs  any  necessary
+        action  needed  before  the  device  is  ready  for I/O (such as
+        enabling of device interrupts).  The interrupt  vector  for  the
+        device  is  set  by  the  IOX, and its initialization is not the
+        responsibility  of  the  driver.   Upon  entry,  register   zero
+        contains  the  address of the Interrupt To return to the IOX, an
+        RTS PC instruction is executed by the device driver.
+
+        II.2.1.2.  Transfer Initialize:
+
+             The second task of the driver is  to  handle  requests  for
+        data  transfer.   The  requests originate from a process issuing
+        the $SIO primitive.  Control is passed from the  $SIO  primitive
+        to  the  IOX  process  handling the device.  The IOX does a jump
+        subroutine to the  "transfer  initialize"  entry  point  of  the
+        device driver, passing the DCT address of the device in R0.  The
+        driver then sets up the I/O registers  for  the  transfer.   The
+        byte  count, buffer address, function, and device output address
+        are contained in the DCT.
+
+             In some cases, the address of  the  ICT  for  a  device  is
+        needed  in  the  transfer  initialize  routine.  The ICT for the
+        interrupt vector that the driver is servicing is found by  using
+        the  DCTICT  entry  in  the  DCT.   The DCTICT word contains the
+        address of the first word of the ICT vector table  corresponding
+        to  that  DCT.   The  ICT vector table has as its first word the
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  22
+        DEVICE DRIVERS
+
+
+        number of ICT addresses  in  the  table.   The  following  words
+        contain  an  address  to  an  ICT.   If  the device has only one
+        interrupt vector, then it will only have one ICT and  one  entry
+        in the ICT vector table.  
+
+             For block transfer devices, a "go" bit is  usually  set  to
+        start  the  transfer  after  the device registers are set.  Then
+        device interrupts may be enabled, and control is returned to the
+        I/O Auxialiary process by means of the RTS PC instruction.
+
+             For character transfer devices, each character  is  usually
+        handled  by  an interrupt routine.  Control may be passed to the
+        interrupt routine directly from the transfer initialize routine;
+        in  this  case,  the  stack  has  to be modified to look like an
+        interrupt had occurred (instead of an RTS PC).  In  many  cases,
+        an   initial  interrupt  may  be  obtained  by  simply  enabling
+        interrupts, and such meddling with the stack is unnecessary.
+
+        II.2.1.3.  Interrupts:
+
+             After the transfer initialize  routine  has  initiated  the
+        I/O,  the third entry point of the driver can be entered through
+        the device  interrupt  vector.   Upon  entry  of  the  interrupt
+        routine  (from  a  device interrupt), register zero contains the
+        address of the ICT.  The previous value of R0 is on the  top  of
+        the stack followed by the PC and PS.  The address of the DCT can
+        be found by using the address of the DCT vector table, which  is
+        in  the ICTDCT word.  The first word of the DCT vector table has
+        the number of DCT addresses in the table.  The number of entries
+        in  the  DCT  vector  table  depends  on  the number of units or
+        devices that interrupt vector handles.  The order of entries  in
+        the  DCT  vector  table  is  determined  by  the  order  of  DCT
+        definitions using that interrupt vector.  The first DCT  defined
+        using that interrupt vector will have the first entry in the DCT
+        vector table etc.  Therefore, the interrupt handler could use  a
+        unit  number  from its I/O status registers to index through the
+        DCT vector table to obtain the correct DCT for servicing.
+
+             For block transfer devices, the  interrupt  routine  checks
+        the  I/O  status  registers for any error.  If there are errors,
+        then it specifies what kind  (discussed  later)  in  the  DCTSTA
+        word.   Otherwise,  it  just  sets  the  done  bit in DCTSTA and
+        returns by one of two ways (discussed later).
+
+             On interrupts for character transfer  devices  the  routine
+        proceeds  with  the set-up for the next character transfer.  Any
+        errors must be checked for, and appropriate  action  taken.   An
+        error  code  may  be  returned  by  the driver in DCTSTA and the
+        number of bytes successfully transferred in DCTBX.  If no errors
+        occured   on  the  last  character,  and  more  data  is  to  be
+        transferred, the routine  may  continue  with  the  transfer  by
+        enabling  device  interrupts  and executing the RTI instruction.
+        When the entire transfer is complete the DCTSTA, DCTBX and other
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  23
+        DEVICE DRIVERS
+
+
+        appropriate   DCT  entries  should  be  updated  by  the  driver
+        interrupt routine.
+
+
+             A return may be accomplished by one of two ways:
+
+                (1)  Restore all registers except R0 and then jump
+                     to the I/O completion routine, $IOCMP, with 
+                     the address of the DCT in R0.
+
+                (2)  Signal the IOX with R1 containing the DCT
+                     address.  (The global $IOXID contains the
+                     process ID for the IOX process.)  Restore
+                     all the registers and exit via a $RTI
+                     primitive.  Note R0 is already saved on top
+                     of the stack upon entry to the interrupt
+                     handler.
+
+        II.2.2.  Register Usage:
+
+             All registers that are changed  by  the  driver  should  be
+        pushed upon entry and popped before return (i.e., saved).
+
+        II.2.3.  Error Codes:
+
+             When an error occurs, bit 15 of DCTSTA should be set.   The
+        low  6  bits  of  DCTSTA, should be set to the appropriate error
+        category.  Bit 7 is the done bit and must always be  set  before
+        returning.  Bits 8 through 14 are set as either a device code or
+        a user code, depending on the error category.  These  codes  are
+        optional and need not be specified.
+
+             Error categories may have value "2" for "user error", value
+        "4"  for  "device error", or value "0" for no error.  A table of
+        the equates for the error codes may be obtained by  calling  the
+        $DFIST macro in KTBL.SML.
+
+        II.2.4.  Assembly:
+
+             To assemble the driver the three entry points (and possibly
+        $IOCMP  and  $IOXID)  must  be specified as "globals".  Also the
+        $CNFIG, $DFREG, $DFIFN, $DFIST, $DFDCT and $DFICT macros must be
+        called  in  order  to  include  the  equates  for  the DCT, ICT,
+        registers, function codes, and error codes.
+
+             The DCT and ICT for the device must  be  generated  in  the
+        KDCT.M11  module, and it must be reassembled.  The object output
+        of the driver and KDCT.M11 are then linked to the  rest  of  the
+        ELF kernel.  
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  24
+        ELF KERNEL PRIMITIVES
+
+
+            II.4 ELF KERNEL PRIMITIVES
+
+
+
+
+
+                 This section  describes  the  means  by  which  ELF
+            kernel  primitives are invoked, and indicates the syntax
+            used in  calling  kernel  MACROs.   The  primitives  are
+            listed  in  alphabetical  order, and each primitive name
+            corresponds to its calling  name  in  the  system  macro
+            library.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  25
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $ASDEV
+
+         Function: ASsign a DEVice to a process (or process-pair)
+
+            $ASDEV      &lt;device name>,&lt;unit number>,&lt;process A>,
+                     R0            R1        MSB (R2)
+                &lt;process B>:&lt;completion code>
+                 LSB (R2)          R0
+         Description:
+
+                 The $ASDEV primitive assigns a device  to  one  (in
+            certain   cases,  two)  process.   Once  the  device  is
+            assigned, only the assigned  process  may  perform  $SIO
+            calls  to  that device.  The device name and unit number
+            have the same requirements as $DFDEV, except a minus one
+            for  the unit number isn't allowed.  Both processes must
+            be specified and a  zero  PID  defaults  to  the  active
+            process.
+
+                 The primitive returns a completion code in R0 which
+            is  zero if the device was assigned successfully.  It is
+            negative (unsuccessful) if the process has a  capability
+            value  greater  than 2.  It is a minus one if the device
+            is non-existent, and it is positive  if  the  device  is
+            already   assigned.    If   the  device  was  previously
+            assigned, a semaphore is returned in R0,  which  can  be
+            used to wait for the device to become released.
+
+         Macro Calling Syntax:
+
+            $ASDEV      DNAM/R0,UNIT/R1,PIDA/R2,PIDB/R2
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  26
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $ASH
+
+         Function: Arithmetic SHift
+
+            $ASH  &lt;shift value>,&lt;register>
+         Description:
+
+                 The specified register  is  shifted  the  specified
+            number of places, where a positive shift value indicates
+            shift left and a negative shift  value  indicates  shift
+            right.  The N, Z, and C bits are set as described in the
+            description of the PDP 11/45 ASH  instruction,  but  the
+            setting  of  the  V  bit is unpredictable.  It should be
+            noted that the shift  value  must  be  a  constant.   In
+            particular,  an  addressing  mode  (such  as  immediate)
+            should not be specified.
+
+         Macro Calling Syntax:
+
+            $ASH  VALUE,REGISTER
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  27
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $AVS
+
+         Function: Allocate Virtual Storage
+
+            $AVS  &lt;#bytes>,&lt;vsmid>:&lt;code>,&lt;virtual address>
+                     R0     R1      R0         R2
+         Description:
+
+                 The $AVS primitive  assumes  a  byte  count  and  a
+            virtual  storage  ID  in  R0  and  R1 respectively.  The
+            storage  is  allocated  within  the  specified   virtual
+            address  space.   It  should  be  noted  that storage is
+            allocated in 32-byte blocks.  When a  request  is  made,
+            the  amount  of  storage  allocated is rounded up to the
+            next multiple of 32 bytes.
+
+                 The virtual address of  the  allocated  storage  is
+            returned  in R2.  If no virtual storage is available for
+            the request then R0 contains a zero instead  of  a  byte
+            count  upon return.  In this case, R2 has a semaphore ID
+            which  may  be  used  to  wait  for  storage  to  become
+            available.
+
+         Macro Calling Syntax:
+
+            $AVS  BYTCNT/R0,[VSMID/R1]
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  28
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $AVSPF
+
+         Function: Allocate Virtual Storage - SPeciFic
+
+            $AVSPF &lt;#bytes>,&lt;vsmid>,&lt;virtual address>
+                      R0     R1          R2
+
+         Description:
+
+                 The $AVSPF primitive assumes a byte count,  virtual
+            address  space ID and a virtual address in R0, R1 and R2
+            respectively.  The  primitive  allocates  the  specified
+            amount  of  storage  at  a  specified  location  in  the
+            specified address space.  This primitive is used for the
+            purpose  of  allocating  specific storage areas; this is
+            performed  during  system  initialization   and   during
+            loading  of  position-dependent  programs.  No arguments
+            are returned.
+
+         Macro Calling Syntax:
+
+            $AVSPF  BYTCNT/R0,[VSMID/R1],VADR/R2
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  29
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $AVSPG
+
+         Function: Allocate Virtual Storage within a PaGe.
+
+            $AVSPG  &lt;#bytes>,&lt;vsmid>:&lt;code>,&lt;virtual address>
+                       R0      R1      R0         R2
+
+         Description:
+
+                 This primitive assumes the same parameters as $AVS.
+            Storage  is also allocated in 32-byte blocks like in the
+            $AVS  primitive;  however  the  storage   allocated   is
+            guaranteed  to  be  within  a  page.   Thus, the largest
+            single request can be 8192 bytes.
+
+                 The primitive returns the same parameters  as  does
+            the $AVS primitive.
+
+         Macro Calling Syntax:
+
+            $AVSPG  BYTCNT/R0,[VSMID/R1]
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  30
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $CREAP
+
+         Function: CREAte a Process
+
+            $CREAP      &lt;entry point>,&lt;priority>,&lt;vsm id>,&lt;event
+             op-code>
+                    (SP)      LSB 2(SP) MSB 2(SP)     LSB 4(SP)
+                &lt;rel capability>:&lt;process  id>,&lt;completion code>
+                    MSB 4(SP)          R0              R1
+
+         Description:
+
+                 The $CREAP primitive assumes  an  entry  point,  an
+            absolute   priority,   an   event   completion  code,  a
+            non-negative relative capability value,  and  a  virtual
+            storage  ID.  These arguments are placed on the caller's
+            stack.  If the virtual storage ID is not specified  then
+            the high byte of the second stack word is set to zero.
+
+                 $CREAP  creates  a  new  system  process  with  the
+            specified  parameters  that are passed.  If the VSMID is
+            zero, then the process is created  within  the  caller's
+            address space and with the same mode(i.e., kernel, user)
+            as the caller.   When  $CREAP  returns  control  to  the
+            caller,  the  stack  is  cleared,  the process ID of the
+            newly-created  process  is  returned  in   R0,   and   a
+            completion  code  in  R1.   The  $CREAP  primitive gives
+            control  to  the   scheduler,   after   allocating   and
+            formatting  a  new process control table for the created
+            process.   When  the  created  process  is  frozen,  the
+            creator  is  signalled  with the event op-code specified
+            when the process was originally created.  the event data
+            in  this  case  contains  the  process  id of the frozen
+            process.
+
+         Macro Calling Syntax:
+
+            $CREAP              EPT,PRIO,EVNTCD,CAPABILITY [,VSMID]
+
+         Completion Codes:
+
+            0= Success
+            2= Undefined priority value (no PRQ), assigned to  first
+            available lower priority queue.
+            4= Insufficient storage for new process
+
+                 Note that  absolute  process  priority  values  are
+            assigned  such  that  the  lowest  priority level in the
+            system has a value of 1, the highest is a  number  equal
+            to   the   number  of  system  process  priority  levels
+            (determined when the system is generated).
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  31
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $CVAS
+
+         Function: Create a new Virtual Address Space.
+
+            $CVAS  :&lt;vsmid/0>
+                       R1
+
+         Description:
+
+                 The $CVAS primitive is  used  to  allocate  in  the
+            system  a  new  virtual address space.  This can be used
+            when a process needs its own address  space  and  it  is
+            necessary  to  load the program into that address space.
+            This address space is later referred to by  its  virtual
+            storage  ID  which  is  returned  in  R1.  If no virtual
+            address spaces were available, then a zero  is  returned
+            in R2.
+
+         Macro Calling Sequence:
+
+            $CVAS
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  32
+        ELF KERNEL PRIMITIVES
+
+
+         TITLE: $DFDEV
+
+         FUNCTION: DEFINE DEVice to system.
+
+            $DFDEV      &lt;device name>,&lt;unit number>:&lt;completion
+             code>,
+                     R0            R1              R0
+                &lt;unit number>
+                     R1
+         Description:
+
+                 The $DFDEV primitive makes a device associated with
+            a  device  control  table (DCT) available for doing $SIO
+            requests .  The device name parameter must must point to
+            a  .RAD50  word  containing  the  device  name,  or  the
+            register must already contain the  .RAD50  device  name.
+            The  unit  number must be specified and must be positive
+            or a minus one.  A unit number of minus one indicates  a
+            request  to  define  any unit available, and return that
+            unit number.
+
+                 The primitive returns a completion  code  which  is
+            zero  if the device is defined successfully, negative if
+            the device doesn't exist and positive if the  device  is
+            already  defined.   If  it  is  positive  the  device is
+            already defined and a semaphore is returned in R0  which
+            can  be used to wait for the device to become undefined.
+            If an arbitrary device unit number  was  requested,  the
+            successfully-allocated unit number is returned in R1.
+
+         Macro Calling Syntax:
+
+            $DFDEV      DNAM/R0,UNIT/R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  33
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $DSABL
+
+         Function: DiSABLe interrupts.
+
+            $DSABL
+
+         Description:
+
+                 This macro generates appropriate code  to  set  the
+            processor  to a priority of seven so that interrupts are
+            disabled.
+
+         Macro Calling Syntax:
+
+            $DSABL
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  34
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $DVAS
+
+         Function: Delete Virtual Address Space
+
+            $DVAS  &lt;vsmid>
+                     R1
+
+         Description:
+
+                 The $DVAS primitive deletes the  specified  virtual
+            storage  address  space that is specified by the virtual
+            storage ID in R1.
+
+         Macro Calling Syntax:
+
+            $DVAS VSMID/R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  35
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $ENABLE
+
+         Function: ENABLE processor for interrupts
+
+            $ENABLE
+
+         Description:
+
+                 This call generates appropriate  code  to  set  the
+            processor's  priority  to  zero  so  that interrupts are
+            enabled.
+
+         Macro Calling Syntax:
+
+            $ENABLE
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  36
+        ELF KERNEL PRIMITIVES
+
+
+            Title: $ERROR
+
+         Function: freeze active process with ERROR code.
+
+            $ERROR      &lt;code>
+                 (SP)
+
+         Description:
+
+                 The $ERROR macro places an error code on the stack,
+            and  transfers  control  to  the  process  error handler
+            ($ERROR).  The process  then  becomes  frozen,  and  the
+            creator  of  the  process  in  error  is  notified.   No
+            registers are used, allowing  the  creating  process  to
+            examine  the  entire  set  of registers.  The error code
+            specified must be literal (e.g.  an  equated  symbol  or
+            numeric value).
+
+         Macro Calling Syntax:
+
+            $ERROR      CODE/-(SP)
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  37
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $EXV
+
+         Function: EXhaustive V of specified semaphore.
+
+            $EXV        &lt;semaphore id>
+                     R0
+
+         Description:
+
+                 The $EXV macro assumes a semaphore ID and passes it
+            in R0 to the $EXV primitive.
+
+                 The $EXV primitive awakens all processes  that  are
+            waiting  on  the  specified semaphore.  No arguments are
+            returned.
+
+         Macro Calling Syntax:
+
+            $EXV                SEMID/R0
+
+         Error Codes:
+
+            $SERIVS=246 ;INVALID SEMAPHORE ID.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  38
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $FREEP
+
+         Function: FREEze Process
+
+            $FREEP      &lt;process id>,&lt;error code>
+                    R0           R1
+
+         Description:
+
+                 The $FREEP macro assumes a process id and an  error
+            code,  which  it passes in R0 and R1 respectively to the
+            $FREEP primitive.  If no process id  or  error  code  is
+            specified, then these arguments assume default values of
+            zero.  It should be noted  that  the  normal  method  of
+            process  termination  is  by freezing the active process
+            with a completion code of zero  (hence,  both  arguments
+            unspecified).
+
+                 The $FREEP routine freezes the process specified in
+            R0 and posts the specified error code.  If R0 contains a
+            zero, then it freezes the active process.
+
+         Macro Calling Syntax:
+
+            $FREEP      PID/R0,ERRCD/R1
+
+         ERROR CODES:
+
+            INVPid=250  ;Invalid process ID on freep or zap
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  39
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $FSEM
+
+         Function: Free SEMaphore id.
+
+            $FSEM       &lt;semaphore id>
+                     R0
+
+         Description:
+
+                 The $FSEM macro assumes a semaphore ID  and  passes
+            it in R0 to the $FSEM primitive.
+
+                 The $FSEM routine releases system storage used  for
+            the  specified  semaphore,  and  makes  the semaphore id
+            "unknown" to the system.  No arguments are returned.
+
+         Macro Calling Syntax:
+
+            $FSEM       SEMID/R0
+
+         Error Codes:
+
+            SERIVS=246  ;INVALID SEMAPHORE ID.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  40
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $FVS
+
+         Function: Free Virtual Storage
+
+            $FVS  &lt;#bytes>,&lt;vsmid>,&lt;virtual address>
+                      R0     R1          R2
+
+         Description:
+
+                 The $FVS primitive assumes the  same  arguments  as
+            $AVS.   That is, the number of bytes, virtual storage ID
+            and the virtual address of the storage to  be  released.
+            The  primitive  releases the specified amount of storage
+            and makes that storage free again.   If  the  number  of
+            bytes  is  not  on  a  128-byte block boundary, then the
+            primitive rounds up to the next boundary.  No  arguments
+            are returned.
+
+         Macro Calling Syntax:
+
+            $FVS  BYTCNT/R0,[VSMID],VADR/R2
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  41
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $GAPID
+
+         Function: Get Active Process ID
+
+                $GAPID  :&lt;vsmid>,&lt;process id>
+                        MSB (R0)   LSB (R0)
+         Description:
+
+                 The $GAPID primitive returns the active process  id
+            (PID)  in  the  low  byte  of  R0 and the active virtual
+            storage map id (VSMID) in the high byte.
+
+         Macro Calling Syntax:
+
+            $GAPID
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  42
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $GETOD
+
+         Function: GEt the Time Of Day
+
+                $GETOD  :&lt;time of day(MSW)>,&lt;time of day(LSW)>
+                                R0                 R1
+         Description:
+
+                 The $GETOD primitive returns the  time  of  day  in
+            ticks.   Where  one  tick  is a 40 microsecond interval.
+            The time is returned in R0 and R1 as a  unsigned  32-bit
+            quantity,  where  R0 is the most significant word and R1
+            is the least significant word.  For  example  there  are
+            25000  decimal  ticks per second, which would correspond
+            to an octal number of 60650 in R1.
+
+         Macro Calling Syntax:
+
+            $GETOD      
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  43
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $GPREG
+
+         Function: Get process register
+
+            $GPREG      &lt;register number>,&lt;process id>:&lt;value>
+                    MSB (R0)         LSB (R0)      R1
+         DESCRIPTION:
+
+                 $GPREG  obtains   the   value   of   one   of   the
+            general-purpose   registers   for   a  specified  frozen
+            process.  A register number is assumed in the high  byte
+            of  register  0,  and a process id is assumed in the low
+            byte of register 0.  The value of the specified register
+            is returned in R1.
+
+         Macro calling syntax:
+
+            $GPREG      PID/R0,REGNR/R0
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  44
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $GTIME
+
+         Function: Get TIME left-to-go
+
+                $GTIME  :&lt;time left-to-go>
+                               R0
+         Description:
+
+                 The $GTIME primitive returns the amount of time  in
+            milleseconds   left-to-go   before  the  timer  interval
+            (issued by a previous $STIME primitive) has expired.
+
+         Macacro Calling Syntax:
+
+            $GTIME
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  45
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $GTPCT
+
+         Function: GeT Process Control Table
+
+            $GTPCT      &lt;process id>,&lt;buffer address>
+                     R0             R1
+
+         Description:
+
+                 The $GTPCT macro assumes a process id  and  a  work
+            buffer   address,   which   is   passed  in  R0  and  R1
+            respectively.
+
+                 The $GTPCT routine then  copies  an  image  of  the
+            PCT(process  control  table)  for  the specified process
+            into the work buffer.  This includes the process  kernel
+            stack.
+
+         Macro Calling Syntax:
+
+            $GTPCT      PID/R0,BUFADR/R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  46
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $HIO
+
+         Function: Halt an Input or Output request.
+
+            $HIO        &lt;IORB address>
+                      R0
+         Description:
+
+                 The $HIO primitive discontinues any  $SIO  requests
+            that  are  in  progress for the specified IORB.  Any I/O
+            that is in the  middle  of  transfer  will  continue  to
+            completion,  but the $SIO primitive will not signal that
+            the I/O is done.
+
+         Macro Calling Syntax:
+
+            $HIO        IORB/R0
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  47
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $ISEM
+
+         Function: Initialize SEMaphore id.
+
+            $ISEM       :&lt;semaphore id>
+                       R0
+
+         Description:
+
+                 The $ISEM macro assumes no arguments.
+
+                 The  $ISEM  primitive  allocates  storage   for   a
+            semaphore  process  queue, and returns a semaphore ID in
+            R0.  If it returns a zero in R0,  then  no  storage  was
+            available.
+
+                 The semaphore ID can  then  be  associated  with  a
+            resource.   With the semaphore ID established, processes
+            can make requests to use the resource with  the  $P  and
+            $REQ primitives.
+
+                 Note  that  it   is   the   initializing   process'
+            responsibility  to  save  the  semaphore  id,  making it
+            accessible to the set of processes sharing the resource.
+
+         Macro Calling Syntax:
+
+            $ISEM
+
+         Error Codes:
+
+            SERSXH=247  ;SEMAPHORE STORAGE EXHAUSTED.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  48
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $IVAS
+
+         Function: Initialize a Virtual Address Space
+
+            $IVAS  &lt;vsmid>
+                     R1
+
+         Description:
+
+                 The $IVAS primitive resets a virtual address space.
+            This  involves  resetting the virtual storage allocation
+            bits and purging all associated pages from main  memory.
+            This primitive is called when a new image of the address
+            space is to be loaded.  No arguments are returned.
+
+         Macro Calling Syntax:
+
+            $IVAS  VSMID/R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  49
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $LOOP
+
+         Function: generate LOOPing structure
+
+            $LOOP  &lt;register with count>,&lt;branch address>
+
+         Description:
+
+            This  macro  generates  machine  independent  code   for
+            building  a  looping  structure.  The register specified
+            should contain the number of times for the  loop  to  be
+            executed.   The branch address should be a label defined
+            before the macro call.
+
+         Macro Calling Syntax:
+
+            $LOOP  REG,BRADR
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  50
+        ELF KERNEL PRIMITIVES
+
+
+            Title: $P
+
+         Function: P a semaphore id.
+
+            $P  &lt;semaphore id>
+                      R0
+
+         Description:
+
+                 The $P macro assumes a semaphore  ID  argument  and
+            passes it in R0 to the $P primitive.
+
+                 The $P primitive adds the process  to  a  queue  of
+            processes  that  are waiting for the resource associated
+            with the semaphore ID.  (de-scheduled) If  the  resource
+            is not available, then the process is put to sleep until
+            it becomes available.
+
+         Macro Calling Syntax:
+
+            $P  SEMID/R0
+
+         Error Codes:
+
+            SERIVS=246  ;INVALID SEMAPHORE ID
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  51
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $REMTX
+
+         Function: Remove EMT eXit.
+
+            $REMTX      &lt;EMT code>
+                    R0
+         Description:
+
+                 The $REMTX primitive removes an EMT exit  that  was
+            previously set by a $SEMTX.
+
+         Macro Calling Syntax:
+
+            $REMTX      EMTCDE/R0
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  52
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $REQ
+
+         Function: REQuest a resource.
+
+            $REQ  &lt;semaphore ID>,&lt;event op-code>,&lt;event data>:
+                     LSB R0          MSB R0         R1
+
+         Description:
+
+                 The $REQ primitive requests the resource associated
+            with  the  semaphore  ID.   The requesting process gains
+            control immediately after making the request (as opposed
+            to  $P,  which  waits  until the resource is available).
+            When the  resource  becomes  available,  the  requesting
+            process  is  signalled  with  the event op-code and data
+            that it specified when it made the request.
+
+         Macro Calling Syntax:
+
+            $REQ  SEMID/R0,EVNTCD/R0,DATA/R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  53
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $RLDEV
+
+         Function: ReLease a DEVice from assignment.
+
+            $RLDEV      &lt;device name>,&lt;unit number>,&lt;process A>,
+                     R0            R1        MSB (R2)
+                &lt;process B>:&lt;completion code>
+                 LSB (R2)          R0
+         Description:
+
+                 The $RLDEV primitive releases  a  device  that  had
+            been  assigned  to some processes by a $ASDEV call.  The
+            arguments required  are  the  same  as  for  the  $ASDEV
+            primitive.
+
+                 A completion code is returned in R0 which  is  zero
+            if  the  device  was  released.   It  is negative if the
+            device doesn't exist and it is positive if the device is
+            not assigned to the specified process.
+
+         Macro Calling Syntax:
+
+            $RLDEV      DNAM/R0,UNIT/R1,PIDA/R2,PIDB/R2
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  54
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $RSTRP
+
+         Function: Restart a process at an entry point
+
+            $RSTRP      &lt;process id>,&lt;entry point>
+                     R0            R1
+
+         Description:
+
+                 The restart-process  primitive  allows  the  kernel
+            stack  of a process to be reset, and the program counter
+            of the process to be set  to  a  specified  value.   The
+            restart  process  primitive  may  only be used by system
+            (kernel) processes, and may only be applied to processes
+            which are frozen.  Restarting a process has no effect on
+            the resources which it owns (i.e., semaphores  which  it
+            has $P'd) or event messages on its input queue.  It also
+            has no effect on I/O requests active or pending for  the
+            given process.
+
+         Macro calling syntax:
+
+            $RSTRP      PID/R0,EP/R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  55
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $RTI
+
+         Function: ReTurn from Interrupt with context switch.
+
+            $RTI
+
+         Description:
+
+                 This primitive effectively does  an  RTI  from  the
+            process,  but  transfers  intermediate  control  to  the
+            scheduler, allowing a higher priority process to receive
+            control.   Thus  the interrupted process regains control
+            from the scheduler according to its scheduling priority.
+
+                 This should be used in conjunction with $SGNLI.  It
+            allows  several  processes  to  be placed on the process
+            ready queue before allowing the scheduler to  perform  a
+            context switch.  (Note that $SIGNL automatically returns
+            control  to  the  scheduler,  allowing  the   signalling
+            process  to  lose  control;  $SGNLI is generally used by
+            interrupt routines which must signal  several  processes
+            before relinquishing control with $RTI)
+
+         Macro Calling Syntax:
+
+            $RTI
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  56
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $SEMTX
+
+         Function: Set EMT eXit
+
+            $SEMTX      &lt;vsmid>,&lt;capability>,&lt;EMT code>,
+                 MSB R0    MSB R1      LSB R1
+                &lt;EMT transfer address>
+                          R2
+         Description:
+
+                 The $SEMTX primitive allows a "user EMT exit" to be
+            set.   lWhen  an  EMT  instruction  is executed with the
+            specified code, control is the passed to  the  specified
+            transfer   address.    The   address   that  control  is
+            transfered  will  be  in  the  virtual   address   space
+            specified  by  the  virtual storage map id (VSMID).  The
+            process that gets control will then have the  capability
+            that is specified.
+
+         Macro Calling Syntax:
+
+            $SEMTX      VSMID/R0,CAP/R1,EMTCDE/R1,EMTXFR/R2
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  57
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $SETOD
+
+         Function: SEt Time Of Day
+
+                $SETOD  &lt;time of day(MSW)>,&lt;time of day(LSW)>
+                               R0                 R1
+         Description:
+
+                 The $SETOD  primitive  sets  the  time  of  day  as
+            specified  by  the  32-bit  quantity  in R0 and R1.  The
+            value specified is a number in ticks, where one tick  is
+            40 microseconds.
+
+         Macro Calling Syntax:
+
+            $SETOD      MSW/R0,LSW/R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  58
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $SGNLI
+
+         Function: SiGNaL a process with an Immediate return.
+
+            $SGNLI      &lt;process id>,&lt;event op-code>,&lt;event data>
+                  LSB (R0)      MSB (R0)          R1
+         DESCRIPTION:
+
+                 THE $SGNLI primitive assumes the same arguments  as
+            $SIGNL.    The  primitive  places  the  specified  event
+            op-code and data on the specified process' event message
+            queue  and  places  the  specified  process in the ready
+            queue if it is  not  there  already.   It  then  returns
+            immediately  to  the calling process without considering
+            whether a higher priority process should  be  scheduled.
+            This  allows a process to signal several other processes
+            before relinquishing control.
+
+         Macro Calling Syntax:
+
+            $SGNLI      PID/R0,EVENTCD/R0,DATA/R1
+
+         Error Codes:
+
+            INVSIG=252  ;INVALID SIGNAL PARAMETER
+
+                 an invalid pid probably was specified.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  59
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $SIGNL
+
+         Function: SIGNaL a process.
+
+            $SIGNL      &lt;process id>,&lt;event op-code>,&lt;event data>
+                  LSB (R0)      MSB (R0)           R1
+
+         Description:
+
+                 The $SIGNL macro assumes a  an  event  op-code  and
+            process  ID which are passed in the high and low byte of
+            R0.  A data word is also assumed and passed in R1.
+
+                 The $SIGNL primitive takes the  event  op-code  and
+            data  word and adds it to the specified processes' event
+            message queue.
+
+                 If the process that is being  signalled  is  asleep
+            (i.e.   it  has  issued  a $WAIT), it will be made ready
+            again.  In the case where the process had done a $WAITS,
+            it  will  only  be  made  ready if you signal it with an
+            event op-code that it was waiting on.
+
+                 If the process being signalled is not asleep,  then
+            the  event  descriptor  is  essentially queued up on the
+            processes' event message queue.   The  $SIGNL  primitive
+            then  returns  to the scheduler and the highest priority
+            process receives control.
+
+         Macro Calling Syntax:
+
+            $SIGNL      PID/R0,EVNTCD/R0,EVNDTA/R1 EVNDTA/R1
+
+         Error Codes:
+
+            INVSIG=252  ;INVALID $SIGNAL PARAMETER
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  60
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $SIO
+
+         Function: Start Input or Output to a device.
+
+            $SIO        &lt;IORB address>
+                      R0
+         Description:
+
+                 The $SIO is used for initiating I/O to devices  and
+            also  to  other  processes  (using inter-process ports).
+            The address of the I/O request block (IORB) is passed in
+            R0.   This  block  is set up, previous to the $SIO call,
+            with the neccessary information  to  do  the  I/O.   The
+            basic requirement for doing I/O is the device name, unit
+            number, buffer address, number of  bytes  for  transfer,
+            and  the  function  to be performed (read or write).  An
+            event op-code is also specified, which is  used  by  the
+            primitive  to signal the calling process when the I/O is
+            complete.
+
+                 When a $SIO call is  made,  control  is  immediatly
+            returned  to the caller once the I/O has been initiated.
+            When the I/O is complete, the system signals the calling
+            process  with  the  event op-code specified in the IORB.
+            An event data word is also passed,  which  contains  the
+            address  of the IORB(refer to $SIGNL).  A status word is
+            returned in the IORB when the I/O is  complete.   If  an
+            error  has  occured  bit  15  is  on  and  an error type
+            returned in the low 7 bits.  Bit 8 is the done  bit  and
+            is turned on when the I/O is complete.  A status code is
+            returned in bits 9-14, which is device dependent.
+
+            Error Types:
+                0= not used
+                2= user error
+                4= device error
+
+                 The error types have an even number  code  so  that
+            they can be used as an index to a branch table.
+
+            Status Codes:
+
+                 Status codes may be found in KTBL.SML under  $DFIST
+            and in device driver documentation.
+
+         Macro Calling Syntax:
+
+            $SIO        IORB/R0
+
+                 To perform  I/O  into  another  address  space  the
+            calling  process  must have a capability value less than
+            or equal to 2.  A capability value less than or equal to
+            3  is required to initiate I/O into the calling process'
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  61
+        ELF KERNEL PRIMITIVES
+
+
+            own address space.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  62
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $SPREG
+
+         Function: Set process register
+
+            $SPREG      &lt;Register number>,&lt;Process ID>,&lt;Value>
+                    MSB (R0)       LSB (R0)       R1
+
+         Description:
+
+                 The $SPREG primitive sets the value of one  of  the
+            general-purpose   registers  belonging  to  a  specified
+            process.  A register number is assumed in the high  byte
+            of  register 0, a Process id is assumed in the low byte.
+            The value of the specified register is returned in R1.
+
+         Macro calling syntax:
+
+            $SPREG      PID/R0,REGNR/R0,VALUE/R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  63
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $STIME
+
+         Function: Set TIMEr for a specified interval.
+
+            $Stime      &lt;event op-code>,&lt;time interval>
+                        R0            R1
+
+         Description:
+
+                 The $STIME macro assumes an  event  op-code  and  a
+            time   interval,   which   are   passed  in  R0  and  R1
+            respectivily to the $STIME primitive.  The time must  be
+            specified in milliseconds, allowing a range of between 1
+            and 65535 ms.
+
+                 The $STIME routine does not return  any  arguments.
+            When  the  specified  time  interval  has  elapsed,  the
+            originating process is signalled with the event  op-code
+            that  was  passed  originally, and with event data of 0.
+            This allows  the  process  to  await  reception  of  the
+            specified   event   op-code,   associating   that   with
+            expiration of its timer.
+
+         Macro Calling Syntax:
+
+            $STIME      EVNTCD/R0,INTRVL/R0
+
+         Error Codes:
+
+            STQERR=244  ;TIMER QUEUE ELEMENTS EXHAUSTED
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  64
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $THAWP
+
+         Function: Thaw a process.
+
+            $THAWP      &lt;Process id>
+                    R0
+
+         Description:
+
+                 The  THAW-PROCESS  primitive  restores  life  to  a
+            frozen process (thaws it) and allows it to continue from
+            the state at which it was frozen.  (Note that a  process
+            may  be  frozen,  its  general-purpose  registers may be
+            examined, and it may then continue; in some sense,  this
+            mimics a PDP-11 processor, which may be halted, have its
+            registers examined, and continue.)
+
+                 While a process is frozen, event messages  continue
+            to  be placed on its event message queue; upon awakening
+            (from a thaw) it obtains these  messages  by  performing
+            the $WAIT primitive.
+
+         Macro calling syntax:
+
+            $THAWP              PID/R0
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  65
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $UDDEV
+
+         Function: UnDefine a DEVice.
+
+            $uddev      &lt;device name>,&lt;unit number>:&lt;completion
+             code>
+                      R0           R1              R0
+         Description:
+
+                 The $UDDEV primitive requires the same arguments as
+            $DFDEV  except  the  unit number may not be a minus one.
+            This primitive makes the  specified  device  unavailable
+            for start I/O's .
+
+                 The primitive returns a completion code in R0 which
+            is zero if completed successfully, negative if no device
+            exists, and positive if the  device  is  assigned  to  a
+            process or the device is already undefined
+
+         Macro Calling Syntax:
+
+            $UDDEV      DNAM/R0,UNIT/R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  66
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $V
+
+         Function: V a semaphore id.
+
+            $V  &lt;semaphore id>
+                      R0
+
+         Description:
+
+                 The $V macro assumes a semaphore ID and  passes  it
+            in R0 to the $V primitive.
+
+                 The $V primitive then takes the calling process off
+            the  queue for that semaphore.  If any other process was
+            waiting for that semaphore, then the head process of the
+            queue  is  signalled  that  the resource associated with
+            that semaphore has been released.
+
+         Macro Calling Syntax:
+
+            $V  SEMID/R0
+
+         Error Codes:
+
+            SERIVS=246  ;INVALID SEMAPHORE ID.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  67
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $VMOV/B
+
+         Function: Virtual storage MOVe word/Byte
+
+            $VMOV/B  &lt;source vsmid>,&lt;dest. vsmid>,&lt;source virt.
+             adr.>,
+                       MSB  R0        LSB  R0            R1
+
+                     &lt;dest. virt. adr.>,&lt;word/byte count>
+                             R2                R3
+
+         Description:
+
+                 The virtual move primitive is  used  to  move  data
+            between  virtual  storage  address spaces.  A source and
+            destination VSMID and virtual  address  are  passed.   A
+            word or byte count is passed depending on the macro call
+            used, i.e.  $VMOV or $VMOVB.  Data can be  moved  to  or
+            from  your  own  address space.  If you are in user mode
+            you must be privileged  to  move  into  another  address
+            space.
+
+         Macro Calling Syntax:
+
+            $VMOV/B  SRCVSM/R0,DSTVSM/R0,SRCVA/R1,DSTVA/R2,CNT/R3
+
+         Error Codes:
+
+            VM1=210     ;UNPRIVILEGED VMOV              This  occurs
+            when a user process does a $VMOV            into another
+            virtual address space and did               not  have  a
+            high enough capability.
+
+            VM2=240     ;VMOV TO READ ONLY PAGE
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  68
+        ELF KERNEL PRIMITIVES
+
+
+            Title: $WAIT
+
+         Function: WAIT for an event.
+
+            $WAIT       :&lt;process id>,&lt;event op-code>,&lt;event data>
+                   MSB (R0)        LSB (R0)        R1
+
+         Description:
+
+                 The $WAIT primitive is used to fetch the next event
+            message from the process' message queue; if there are no
+            entries on it's queue, the process is removed  from  the
+            scheduler's  ready queue, causing the process to "sleep"
+            until another process wakes it up by issuing the  signal
+            primitive.   $WAIT  then returns to the process with the
+            event message in registers R0 and R1(i.e.  the PID is in
+            the  high  byte,  event op-code in the low byte, and the
+            data word in R1).
+
+         MACRO CALLING SYNTAX:
+
+            $WAIT
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  69
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $WAITS
+
+         FUNCTION: WAIT for a Specific event op-code.
+
+            $WAITS      &lt;event op-code>:&lt;process id>,&lt;event op-code>
+                   LSB (R0)       MSB (R0)      LSB (R0)
+                &lt;event data>
+                     R1
+         Description:
+
+                 The $WAITS primitive is used to wait for a specific
+            event  (as  opposed  to  $WAIT  which  waits until it is
+            signalled by any event).  The event  op-code,  which  is
+            passed  in  the  low byte of R0, denotes the event to be
+            awaited.  Other events are left on  the  process'  event
+            message  queue,  and are retrieved by a subsequent $WAIT
+            or $WAITS.
+
+                 As an example,  $WAITS  may  be  used  to  await  a
+            specific I/O completion.
+
+         Macro Calling Syntax:
+
+            $WAITS      EVNTCD/R0
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  70
+        ELF KERNEL PRIMITIVES
+
+
+         Title: $XOR
+
+         Function: eXclusive OR
+
+            $XOR  &lt;register>,&lt;destination>
+
+         Description:
+
+                 The exclusive OR of the  register  and  destination
+            operand  is stored in the destination address.  Contents
+            of the register are unaffected.  The addressing mode  of
+            the   destination   may   NOT   be   auto-increment   or
+            auto-decrement.  The addressing mode of the  destination
+            may   be   register,  register  deferred,  relative,  or
+            relative deferred, with the exception that only register
+            deferred mode may be used with R6.
+
+         Macro Calling Syntax
+
+            $XOR  REGISTER, DESTINATION       e.g.  $XOR   R2,R1
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  71
+        ELF KERNEL PRIMITIVES
+
+
+            Title: $ZAP
+
+         Function: ZAP a process.
+
+            $ZAP        &lt;process id>
+                     R0
+
+         description:
+
+                 The $ZAP macro assumes a process  id  argument  and
+            passes it in R0 to the $ZAP primitive.
+
+                 The $ZAP routine the  releases  all  PCT's  at  the
+            specified  level  and  below.   If the process id is the
+            active process or a zero, then an error occurs.
+
+         Macro Calling Syntax:
+
+            $ZAP                PID/R0
+
+         Error Codes:
+
+            INVZAP=251  ;SUICIDE NOT LEGAL ON $ZAP
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  72
+        ELF KERNEL PRIMITIVES
+
+
+
+            $ASDEV . . . . . . . . . . . 25
+            $ASH . . . . . . . . . . . . 26
+            $AVS . . . . . . . . . . . . 27, 29, 40
+            $AVSPF . . . . . . . . . . . 28
+            $AVSPG . . . . . . . . . . . 29
+            $CVAS  . . . . . . . . . . . 31
+            $DFDEV . . . . . . . . . . . 25, 32, 65
+            $DSABL . . . . . . . . . . . 33
+            $DVAS  . . . . . . . . . . . 34
+            $ENABLE  . . . . . . . . . . 35
+            $ERROR . . . . . . . . . . . 36
+            $EXV . . . . . . . . . . . . 37
+            $FREEP . . . . . . . . . . . 38
+            $FSEM  . . . . . . . . . . . 39
+            $FVS . . . . . . . . . . . . 40
+            $GAPID . . . . . . . . . . . 41
+            $GETOD . . . . . . . . . . . 42
+            $GPREG . . . . . . . . . . . 43
+            $GTIME . . . . . . . . . . . 44
+            $GTPCT . . . . . . . . . . . 45
+            $HIO . . . . . . . . . . . . 46
+            $ISEM  . . . . . . . . . . . 47
+            $IVAS  . . . . . . . . . . . 48
+            $LOOP  . . . . . . . . . . . 49
+            $P (Semaphore) . . . . . . . 52
+            $P (semaphore) . . . . . . . 50
+            $REMTX . . . . . . . . . . . 51
+            $REQ . . . . . . . . . . . . 52
+            $RLDEV . . . . . . . . . . . 53
+            $RSTRP . . . . . . . . . . . 54
+            $RTI . . . . . . . . . . . . 55
+            $SEMTX . . . . . . . . . . . 56
+            $SETOD . . . . . . . . . . . 57
+            $SGNLI . . . . . . . . . . . 55, 58
+            $SIGNL . . . . . . . . . . . 59
+            $SIO . . . . . . . . . . . . 25, 46, 60
+            $SPREG . . . . . . . . . . . 62
+            $STIME . . . . . . . . . . . 44, 63
+            $THAWP . . . . . . . . . . . 64
+            $UDDEV . . . . . . . . . . . 65
+            $V (semaphore) . . . . . . . 66
+            $VMOV/B  . . . . . . . . . . 67
+            $WAIT  . . . . . . . . . . . 68, 69
+            $WAITS . . . . . . . . . . . 69
+            $XOR . . . . . . . . . . . . 70
+            $ZAP . . . . . . . . . . . . 71
+
+            .RAD50 . . . . . . . . . . . 32
+
+            Address Space  . . . . . . . 31, 34, 48, 67
+            Assign a device  . . . . . . 25
+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  73
+        ELF KERNEL PRIMITIVES
+
+
+            Capability . . . . . . . . . 25, 30, 56, 60, 67
+            Completion code  . . . . . . 25, 32, 53, 65
+            Completion codes . . . . . . 30
+
+            Define a device  . . . . . . 32
+            Device control table . . . . 32
+            Device name  . . . . . . . . 25, 32, 53, 65
+
+            EMT code . . . . . . . . . . 51
+            EMT exit . . . . . . . . . . 56
+            Entry point  . . . . . . . . 30
+            Error codes  . . . . . . . . 36, 38
+            Event data . . . . . . . . . 58, 68
+            Event Data . . . . . . . . . 52
+            Event descriptor . . . . . . 59
+            Event message  . . . . . . . 68
+            Event message queue  . . . . 59, 68, 69
+            Event op-code  . . . . . . . 58, 59, 60, 63, 68, 69
+            Event Op-code  . . . . . . . 52
+            Event op-code  . . . . . . . 30
+
+            Free a semaphore . . . . . . 39
+            Freeze process . . . . . . . 38
+            Frozen processes . . . . . . 54, 64
+
+            Get process register . . . . 43
+            Get process table  . . . . . 45
+
+            Halt I/O . . . . . . . . . . 46
+
+            I/O request block  . . . . . 60
+            Initialize semaphore . . . . 47
+            Inter process ports  . . . . 60
+            Interrupts . . . . . . . . . 33, 35
+            INVPID . . . . . . . . . . . 38
+            INVSIG . . . . . . . . . . . 59
+            INVZAP . . . . . . . . . . . 71
+            IORB . . . . . . . . . . . . 46, 60
+
+            PCT  . . . . . . . . . . . . 45
+            PID  . . . . . . . . . . . . 25, 38, 45, 58, 59, 68, 71
+            Priority . . . . . . . . . . 30
+            Process control table  . . . 45
+            Process ID . . . . . . . . . 59, 71
+            Process id . . . . . . . . . 30, 38, 41, 45
+
+            Release a device . . . . . . 53
+            Resources  . . . . . . . . . 47, 50, 66
+            Restarting a process . . . . 54
+            Return from interrupt  . . . 55
+
+            Scheduler  . . . . . . . . . 55
+            Semaphore  . . . . . . . . . 27, 32, 37, 39, 47, 50, 52, 66
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  74
+        ELF KERNEL PRIMITIVES
+
+
+            SERIVS . . . . . . . . . . . 37, 39, 50, 66
+            SERSXH . . . . . . . . . . . 47
+            Set process register . . . . 62
+            Set timer  . . . . . . . . . 63
+            Signal a process . . . . . . 59
+            Signal process immediate . . 58
+            Start I/O  . . . . . . . . . 60
+            STQERR . . . . . . . . . . . 63
+
+            Thaw process . . . . . . . . 64
+            Ticks  . . . . . . . . . . . 42, 57
+            Time of day  . . . . . . . . 42
+            Timer interval . . . . . . . 44, 63
+
+            Undefine device  . . . . . . 65
+            Unit number  . . . . . . . . 25, 32, 53, 65
+
+            VSMID  . . . . . . . . . . . 27, 28, 29, 30, 31, 34, 40, 41, 48, 56, 67
+
+            Wait for event . . . . . . . 68
+            Wait for specific event  . . 69
+
+            Zap a process  . . . . . . . 71
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  75
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+            II.4 System Tables and Data Structures
+
+
+            II.4.1.0 DCT - Device Control Table
+
+                 For each I/O device there exists a device control table
+            which  is  accessed by the IOX process on behalf of the user
+            and by the I/O driver on behalf of the device.
+
+                 There  are  five  types  of   DCTs   corresponding   to
+            character-in    devices,    character-out   devices,   block
+            addressable   devices,   byte   addressable   devices    and
+            inter-process   ports.    These   five  types  of  DCTs  are
+            illustrated in figures 1.1, 1.2, 1.3, 1.4.  Following  is  a
+            description of the DCT entries:
+
+         DCTW0-N:    Device  Work  Words.   (Dynamic,  modified  by  the
+                     device  driver).   Words  used  by  the  driver for
+                     storage   to   allow   segmented   and    reentrant
+                     operations.  This allows the same driver to be used
+                     for a set of identical devices.
+
+         DCTQH:      Device Queue Head.  (Dynamic, modified by $SIO  and
+                     IOX).   A word which points to the head I/O request
+                     queue element.  Zero implies the queue is empty.
+
+         DCTQT:      Device Queue Tail.  (Dynamic, modified by $SIO  and
+                     IOX).   A word which points to the tail I/O request
+                     queue element.
+
+         DCTNAM:     Device Name.   (Static).   A  word  containing  the
+                     RAD50 code for the 3-character device name.
+
+         DCTUN:      Device Unit Number.  (Static).  A  word  containing
+                     the  device  unit number, which may range from 0 to
+                     65,534 (radix 10).
+
+         DCTCSR:       Device  Unibus  Address.    (Static).    A   word
+                     containing  the unibus address of the device status
+                     register.  This address is periodically  referenced
+                     by  the  system  to  determine  if  the  device  is
+                     on-line.
+
+         DCTWST:     DCT Wait State.  (Dynamic,  modified  by  IOX).   A
+                     byte used to indicate the op-code requested for the
+                     DCT at the time the IOX issues the $WAIT primitive.
+
+         DCTCSI:     Channel Semaphore ID.  (Dynamic,  modified  by  IOX
+                     and  the  device  driver).   A  byte containing the
+                     semaphore ID associated  with  any  shared  channel
+                     currently  allocated  to  the  device.   The device
+                     driver may optionally release the channel and clear
+                     the  byte;  e.g.  releasing the mag tape controller
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  76
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+                     after a rewind has been initiated  on  one  of  the
+                     tape drives.
+
+
+
+
+         DCTPC:      DCT Program Counter.  (Dynamic, modified  by  IOX).
+                     A  word  containing the continuation address of the
+                     IOX  procedure   to   which   control   should   be
+                     transferred  when the op-code requested for the DCT
+                     is received.
+         DCTICT:      ICT  Vector  Table  Address.   (Static).   A  word
+                     containing the address of the associated ICT vector
+                     table.  The ICT vector table connects  the  DCT  to
+                     all associated ICTs.
+
+         DCTSTT:     Device State.  (Dynamic, modified by $SIO and IOX).
+                     A  byte containing the current state of the device.
+                     Bit 7, when 'ON' indicates the device  is  on-line.
+                     Bit 6, when 'ON' indicates the device is initiated.
+                     Bit 5, when 'ON' indicates the device  is  disabled
+                     by the system.
+
+         DCTIXC:     IOX Procedure Code.  (Static).  A  byte  containing
+                     the  code  of  the  IOX  procedure  associated with
+                     particular DCT.  Only one IOX  process  exists  for
+                     all DCTs.
+
+         DCTMPA:     Master process A.  (Dynamic, modified by $SIO).   A
+                     byte  containing  the  process ID of one of the two
+                     possible processes which may own (i.e., be assigned
+                     to)  a  device.   A  content  of zero indicates the
+                     device is currently unassigned.
+
+         DCTMPB:     Master Process B.  (Dynamic, modified by $SIO).   A
+                     byte  containing  the  process ID of one of the two
+                     possible processes  which  may  own  a  device.   A
+                     content  of  zero indicates the device is currently
+                     unassigned.
+
+         DCTIQA:     Active IORQE-A.  (Dynamic,  modified  by  IOX).   A
+                     word,  containing  the address of the primary IORQE
+                     currently  being  processed  by  the   IOX.    Upon
+                     processing  an  IORQE,  the IOX removes the element
+                     from the device queue and sets the element  address
+                     in the DCTIQA word.  No active I/O request upon the
+                     device is indicated when the content of  DCTIQA  is
+                     zero.
+
+         DCTIQB:     Active IORQE-B.  (Dynamic,  modified  by  IOX).   A
+                     word  containing the address of the secondary IORQE
+                     currently being processed by the Inter-Process Port
+                     IOX procedure.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  77
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         DCTABA:     Auxilliary Buffer Address.  (Dynamic,  modified  by
+                     IOX).    A   word  containing  the  address  of  an
+                     auxiliary buffer which is allocated to  the  device
+                     by the IOX process.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  78
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         DCTABX:     Auxilliary Buffer Page Index.   (Dynamic,  modified
+                     by  IOX).   A  byte  containing the page index of a
+                     locked page which is allocated to the device by the
+                     IOX process.
+         DCTCHI:     Channel Index.  (Static).   A  byte  containing  an
+                     index  into  the  logical  channel  table of shared
+                     channel semaphore IDs.  A content  of  0  indicates
+                     that  the  device  does not use a shared channel or
+                     controller.
+
+         DCTCAP:     Device Capabilities.  (Static).  A word  containing
+                     a   description   of   the   device   capabilities.
+                     Currently for character type  devices,  bit  15  is
+                     used to indicate input only (0) or output only (1).
+
+         DCTABS:     Auxilliary Buffer Maximum Size.  (Static).  A  word
+                     containing  the maximum byte size of the auxilliary
+                     buffer which the IOX may allocate to the device.
+
+         DCTDVA:      Device  Driver   Address.    (Static).    A   word
+                     containing  the  entry  point  of the device driver
+                     procedure used to initiate I/O operations.
+
+         DCTFCN:     Device Function.  (Dynamic, modified  by  IOX).   A
+                     word  containing  the  requested I/O function.  The
+                     lo-order byte contains the specified  I/O  function
+                     code;   the   hi-order  byte  contains  the  device
+                     dependent parameters.
+
+         DCTSTA:     Device Status.  (Dynamic, modified by IOX  and  the
+                     device  driver).   A  word containing the status of
+                     the device and I/O operation.   The  hi-order  byte
+                     contains  the  status  code and error bit (bit 15);
+                     the lo-order byte contains the error  category  and
+                     I/O completion bit (bit 7).
+
+         DCTBR:      Bytes Requested.  (Dynamic, modified  by  IOX).   A
+                     word   containing   the   number  of  bytes  to  be
+                     transferred or operations to be performed  for  the
+                     specified function.
+
+         DCTBX:      Bytes Transferred.  (Dynamic, modified by  IOX  and
+                     the  device  driver).  A word containing the number
+                     of bytes transferred or  operations  performed  for
+                     the completed I/O request.
+
+         DCTECT:     Device Error Count.  (Dynamic, modified by IOX  and
+                     the device driver).  A byte provided for use by the
+                     device driver to maintain the I/O  operation  error
+                     count.  May be used for all types of devices.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  79
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         DCTXRT:     Transfer Rate.  (Dynamic,  modified  by  $SIO).   A
+                     byte  containing  the  transfer  rate for character
+                     type devices.
+         DCTMA:      Mate DCT.  (Static).  A word containing the address
+                     of  the mate DCT for 'TTY' terminals.  A content of
+                     zero indicates no mate exists.
+
+         DCTA:       Active Transfer Address.  (Dynamic, modified by IOX
+                     and  the  device  driver).   A  word containing the
+                     address for the destination of the  next  character
+                     input or the source of the next character output.
+
+         DCTCNT:     Character Count.  (Dynamic, modified by IOX and the
+                     device  driver).   A  word  containing  the current
+                     number of output buffer characters  or  input  ring
+                     buffer characters.
+
+         DCTO:       Oldest  Input  Character.   (Dynamic,  modified  by
+                     IOX).   A  word  containing  the  address of oldest
+                     character in the input ring buffer.
+
+         DCTS:       Ring  Buffer  Start  Address.   (Static).   A  word
+                     containing the start address of the character input
+                     ring buffer.
+
+         DCTE:        Ring  Buffer  End  Address.   (Static).   A   word
+                     containing the address of the first cell beyond the
+                     character input ring buffer.
+
+         DCTFCT:     Fill  Count.   (Dynamic,  modified  by  the  device
+                     driver).   A  byte  containing  the  number of fill
+                     characters currently needed for character output.
+
+         DCTTCT:      Tab  Count.   (Dynamic,  modified  by  the  device
+                     driver).    A   byte   containing   the  number  of
+                     characters to the next tab stop.
+
+         DCTPAH:     Physical Address High.  (Dynamic, modified by IOX).
+                     A byte containing the hi-order 2 bits of the 18 bit
+                     buffer address as right-justified information.
+
+         DCTPAL:     Physical Address Low.  (Dynamic, modified by  IOX).
+                     A  word  containing  the lo-order 16 bits of the 18
+                     bit buffer address.
+
+         DCTBSZ:     Block  Size.   (Static).   A  word  containing  the
+                     number  of  bytes per data block of the device.  An
+                     entry of zero is illegal.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  80
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         DCTBHA:     Device Byte/Block Address High.  (Dynamic, modified
+                     by  IOX).  A word containing the high order 16 bits
+                     of the 32 bit block or byte address of the  device.
+                     For  block  addressable  devices this is the device
+                     block address, where the block length is defined by
+                     the  DCTBSZ  field.   For  byte-addressable devices
+                     this is the device byte address.
+
+         DCTBLA:     Device Byte/Block Address Low.  (Dynamic,  modified
+                     by IOX).  A word containing the lo-order 16 bits of
+                     the 32 bit block or byte  address  of  the  device.
+                     For  block  addressable  devices this is the device
+                     block address, where the block length is defined by
+                     the  DCTBSZ  field.   For  byte-addressable devices
+                     this is the device byte address.
+
+         DCTMBX:      Maximum  byte   transfer.    (Static).    A   word
+                     containing the maximum number of bytes which may be
+                     transferred by the device  in  one  operation.   An
+                     entry of zero is illegal.
+
+         DCTNBH:      Number  of  Blocks  High.    (Static).    A   word
+                     containing  the  hi-order  16  bits  of  the 32 bit
+                     number of device data blocks.   This  parameter  is
+                     not necessary for byte addressable devices.
+
+         DCTNBL:     Number of Blocks Low.  (Static).  A word containing
+                     the lo-order 16 bits of the 32 bit number of device
+                     data blocks.  This parameter is not  necessary  for
+                     byte addressable devices.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  81
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+        FIGURE 1.1
+
+
+                 CHARACTER OUT DCT
+
+                  -FRONT SECTION-
+
+                +-----------------+
+        DCT:  0 !      DCTQH      !
+                !-----------------!
+              2 !      DCTQT      !
+                !-----------------!
+              4 !      DCTNAM     !
+                !-----------------!
+              6 !      DCTUN      !
+                !-----------------!
+             10 !      DCTCSR     !
+                !-----------------!
+             12 ! DCTCSI ! DCTWST !
+                !-----------------!
+             14 !      DCTPC      !
+                !-----------------!
+             16 !      DCTICT     !
+                !-----------------!
+             20 ! DCTIXC ! DCTSTT !
+                !-----------------!
+             22 ! DCTMPB ! DCTMPA !
+                !-----------------!
+             24 !      DCTIQA     !
+                !-----------------!
+             26 !      DCTIQB     !
+                !-----------------!
+             30 !      DCTABA     !
+                !-----------------!
+             32          ! DCTABX !
+                         +--------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  82
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+                 CHARACTER OUT DCT
+
+                 -MIDDLE SECTION-
+
+                +--------+
+             32 ! DCTCHI !
+                !-----------------!
+             34 !      DCTCAP     !
+                !-----------------!
+             36 !      DCTABS     !
+                !-----------------!
+             40 !      DCTDVA     !
+                !-----------------!
+             42 !      DCTFCN     !
+                !-----------------!
+             44 !      DCTSTA     !
+                !-----------------!
+             46 !      DCTBR      !
+                !-----------------!
+             50 !      DCTBX      !
+                +-----------------!
+             52          ! DCTECT !
+                         +--------+
+
+
+                  -TAIL SECTION-
+
+                +--------+
+             52 ! DCTXRT !
+                !-----------------+
+             54 !      DCTMA      !
+                !-----------------!
+             56 !      DCTA       !
+                !-----------------!
+             60 !      DCTCNT     !
+                !-----------------!
+             62 ! DCTTCT ! DCTFCT !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  83
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         FIGURE 1.2
+
+
+                 CHARACTER IN DCT
+
+                  -FRONT SECTION-
+
+                +-----------------+
+        DCT:  0 !      DCTQH      !
+                !-----------------!
+              2 !      DCTQT      !
+                !-----------------!
+              4 !      DCTNAM     !
+                !-----------------!
+              6 !      DCTUN      !
+                !-----------------!
+             10 !      DCTCSR     !
+                !-----------------!
+             12 ! DCTCSI ! DCTWST !
+                !-----------------!
+             14 !      DCTPC      !
+                !-----------------!
+             16 !      DCTICT     !
+                !-----------------!
+             20 ! DCTIXC ! DCTSTT !
+                !-----------------!
+             22 ! DCTMPB ! DCTMPA !
+                !-----------------!
+             24 !      DCTIQA     !
+                !-----------------!
+             26 !      DCTIQB     !
+                !-----------------!
+             30 !      DCTABA     !
+                !-----------------!
+             32          ! DCTABX !
+                         +--------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  84
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+                 CHARACTER IN DCT
+
+                 -MIDDLE SECTION-
+
+                +--------+
+             32 ! DCTCHI !
+                !-----------------!
+             34 !      DCTCAP     !
+                !-----------------!
+             36 !      DCTABS     !
+                !-----------------!
+             40 !      DCTDVA     !
+                !-----------------!
+             42 !      DCTFCN     !
+                !-----------------!
+             44 !      DCTSTA     !
+                !-----------------!
+             46 !      DCTBR      !
+                !-----------------!
+             50 !      DCTBX      !
+                +-----------------!
+             52          ! DCTECT !
+                         +--------+
+
+
+                  -TAIL SECTION-
+
+                +--------+
+             52 ! DCTXRT !
+                !-----------------+
+             54 !      DCTMA      !
+                !-----------------!
+             56 !      DCTA       !
+                !-----------------!
+             60 !      DCTCNT     !
+                !-----------------!
+            62  !      DCTO       !
+                !-----------------!
+            64  !      DCTS       !
+                !-----------------!
+            66  !      DCTE       !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  85
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         FIGURE 1.3
+
+
+               BLOCK/BYTE ADDRESSABLE DCT
+
+                  -FRONT SECTION-
+
+                +-----------------+
+        DCT:  0 !      DCTQH      !
+                !-----------------!
+              2 !      DCTQT      !
+                !-----------------!
+              4 !      DCTNAM     !
+                !-----------------!
+              6 !      DCTUN      !
+                !-----------------!
+             10 !      DCTCSR     !
+                !-----------------!
+             12 ! DCTCSI ! DCTWST !
+                !-----------------!
+             14 !      DCTPC      !
+                !-----------------!
+             16 !      DCTICT     !
+                !-----------------!
+             20 ! DCTIXC ! DCTSTT !
+                !-----------------!
+             22 ! DCTMPB ! DCTMPA !
+                !-----------------!
+             24 !      DCTIQA     !
+                !-----------------!
+             26 !      DCTIQB     !
+                !-----------------!
+             30 !      DCTABA     !
+                !-----------------!
+             32          ! DCTABX !
+                         +--------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  86
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+               BLOCK/BYTE ADDRESSABLE    DCT
+
+                 -MIDDLE SECTION-
+                +--------+
+             32 ! DCTCHI !
+                !-----------------!
+             34 !      DCTCAP     !
+                !-----------------!
+             36 !      DCTABS     !
+                !-----------------!
+             40 !      DCTDVA     !
+                !-----------------!
+             42 !      DCTFCN     !
+                !-----------------!
+             44 !      DCTSTA     !
+                !-----------------!
+             46 !      DCTBR      !
+                !-----------------!
+             50 !      DCTBX      !
+                +-----------------!
+             52          ! DCTECT !
+                         +--------+
+
+
+                  -TAIL SECTION-
+                +--------+
+             52 ! DCTPAH !        
+                !-----------------!
+             54 !      DCTPAL     !
+                !-----------------!
+             56 !      DCTBSZ     !
+                !-----------------!
+             60 !      DCTBHA     !
+                !-----------------!
+            62  !      DCTBLA     !
+                !-----------------!
+            64  !      DCTMBX     !
+                !-----------------!
+            66  !      DCTNBH     !
+                !-----------------!
+            70  !      DCTNBL     !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  87
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         FIGURE 1.4
+
+
+               INTER PROCESS PORT DCTS
+
+                  -FRONT SECTION-
+
+                +-----------------+
+        DCT:  0 !      DCTQH      !
+                !-----------------!
+              2 !      DCTQT      !
+                !-----------------!
+              4 !      DCTNAM     !
+                !-----------------!
+              6 !      DCTUN      !
+                !-----------------!
+             10 !      DCTCSR     !
+                !-----------------!
+             12 ! DCTCSI ! DCTWST !
+                !-----------------!
+             14 !      DCTPC     !
+                !-----------------!
+             16 !      DCTICT     !
+                !-----------------!
+             20 ! DCTIXC ! DCTSTT !
+                !-----------------!
+             22 ! DCTMPB ! DCTMPA !
+                !-----------------!
+             24 !      DCTIQA     !
+                !-----------------!
+             26 !      DCTIQB     !
+                !-----------------!
+             30 !      DCTABA     !
+                !-----------------!
+             32          ! DCTABX !
+                         +--------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  88
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+             INTER PROCESS PORT DCTS
+
+                 -TAIL SECTION-
+
+                +--------+
+             32 !   0    !
+                !-----------------!
+             34 !      DCTWQH     !
+                !-----------------!
+             36 !      DCTWQT     !
+                !-----------------!
+             40 !      DCTRQH     !
+                !-----------------!
+             42 !      DCTRQT     !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  89
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         2.0 ICT - Interrupt Control Table
+
+
+              Each interrupt is associated  with  an  Interrupt  Control
+         Table.   This  organization  of  ICTs  and  DCTs permits direct
+         handling of the cases of multiple  devices  per  interrupt  and
+         multiple interrupts per device.
+
+              Following is a description of the ICT entries:
+
+
+         ICTIHX:     Interrupt Handler Transfer.  A  word  containing  a
+                     "JSR  RO,  @(PC) plus" instruction which is used to
+                     transfer control to the interrupt handler with  the
+                     address of the ICT in 'RO'; ICTIHX is the target of
+                     the associated interrupt vector.
+
+         ICTIHA:     Interrupt Handler Address.  A word  containing  the
+                     address of the associated interrupt handler.
+
+         ICTIVA:     Interrupt Vector Address.  A  byte  containing  the
+                     address  of  the  associated  interrupt  vector.  A
+                     content of zero indicates a null vector.
+
+         ICTIVP:     Interrupt Vector Priority.  A byte  containing  the
+                     priority of the associated interrupt vector.
+
+         ICTCSR:     Interrupt  Bus  Address.   A  word  containing  the
+                     unibus  address  of  the interrupt status register.
+                     This address is referenced by the IOX to  determine
+                     if the interrupt is on-line.
+
+         ICTINA:     Interrupt Initialize Address.   A  word  containing
+                     the address of the procedure used to initialize the
+                     interrupt.
+
+         ICTDCT:     DCT Vector Table Address.  A  word  containing  the
+                     address  of  the  associated DCT vector table.  The
+                     DCT vector table connects the ICT  to  all  related
+                     DCTs.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  90
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+        FIGURE 2.1
+
+
+               INTERRUPT CONTROL TABLE
+
+                +-----------------!
+             -4 !      ICTIHX     !
+                !-----------------!
+             -2 !      ICTIHA     !
+                !-----------------!
+              0 ! ICTIVP ! ICTIVA !
+                +-----------------!
+              2 !      ICTCSR     !
+                !-----------------!
+              4 !      ICTINA     !
+                !-----------------!
+              6 !      ICTDCT     !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  91
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         3.0 IORB - I/O Request Block
+
+
+              Each I/O request by a user process must be accompanied  by
+         a user defined I/O Request Block.
+
+              Following is a description of IORB entries:
+
+
+         IRNAM:      Device Name.  A word set to the RAD50  device  name
+                     code by the user prior to issuing the $SIO request.
+
+         IRUNIT:     Device Unit Number.  A word set to the  device-unit
+                     number  by  the  user  prior  to  issuing  the $SIO
+                     request.  The maximum allowed unit number is 65,534
+                     (radix 10).
+
+         IROPC:      I/O Op-Code.  A byte set to a  desired  op-code  by
+                     the  user  prior to issuing the $SIO request.  Upon
+                     completion of the I/O request the user is signalled
+                     with the specified op-code in RO and the address of
+                     the IORB in R1.
+
+         IRUVI:      User Buffer Virtual Address Space ID.  A byte,  set
+                     to  the  address  space  ID  of the associated data
+                     buffer by  the  user  prior  to  issuing  the  $SIO
+                     request.   A  value of zero results in a default to
+                     the current address space ID of the caller.
+
+         IRUVA:      User Buffer Virtual Address.  A  word  set  to  the
+                     address  of  the  data  buffer by the user prior to
+                     issuing the $SIO request.
+
+         IRFCN:      I/O Function.  A word set to the requested function
+                     code by the user prior to issuing the $SIO request.
+                     The lo-order byte is the  function  code;  requests
+                     are placed at the head of the device queue if bit 7
+                     is  'ON'.   The  hi-order  byte   contains   device
+                     dependent  information;  requests  on 'TTY' devices
+                     require that the input (0) or output (1) device  be
+                     specified via bit 15.
+
+         IRBR:       Bytes Requested.   A  word  set  to  the  requested
+                     number of bytes or I/O operations by the user prior
+                     to issuing the $SIO request.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  92
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         IRSTA:      I/O Status.  A  word  set  to  the  status  of  the
+                     requested   I/O   operation  at  the  time  of  I/O
+                     completion.   Until  completion,  the  status  word
+                     remains  unchanged  and  must be initialized by the
+                     user if required.  The hi-order byte  contains  the
+                     status  code  and  error bit (bit 15); the lo-order
+                     byte contains the error category and completion bit
+                     (bit 7).
+
+         IRBX:       Bytes Transferred.  A word set at  completion  time
+                     to  the  number  of  bytes transferred or number of
+                     operations performed.  Until  completion  the  word
+                     remains  unchanged  and  must be initialized by the
+                     user if required.
+
+         IRBHA:      Device Byte  Address  High.   A  word  set  to  the
+                     hi-order  16 bits of the 32 bit device byte address
+                     by the user prior to issuing the $SIO request.  For
+                     non-addressable,  this  entry  should be zero.  For
+                     block oriented devices a "device address error"  is
+                     returned  to  the user if the byte address does not
+                     lie in a block boundary.
+
+         IRBLA:      Block Address Low.  A word set to the  lo-order  16
+                     bits  of the 32 bit block address by the user prior
+                     to issuing the $SIO request.   For  non-addressable
+                     devices, this entry should be zero.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  93
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+        FIGURE 3.1
+
+
+                IORB I/O REQUEST BLOCK
+
+                +-----------------+
+              0 !      IRNAM      !
+                !-----------------!
+              2 !      IRUNIT     !
+                !-----------------!
+              4 ! IRUVI  ! IROPC  !
+                !-----------------!
+              6 !      IRUVA      !
+                !-----------------!
+             10 !      IRFCN      !
+                !-----------------!
+             12 !      IRBR       !
+                !-----------------!
+             14 !      IRSTA      !
+                !-----------------!
+             16 !      IRBX       !
+                !-----------------!
+             20 !      IRBHA      !
+                !-----------------!
+             22 !      IRBLA      !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  94
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         4.0 IORQE - I/O Request Queue Element
+
+
+              Each I/O request is queued up by the $SIO primitive on the
+         device  queue  of the appropriate DCT.  The format of the queue
+         element  is  basically  the  originating  IORB  prefaced  by  a
+         descriptor of the IORB.
+
+              Following is a description of IORQE entries.
+
+
+         IQLNK:      Queue Element Link.  A word containing the  address
+                     of  the  next IORQE in the device queue.  A content
+                     of zero indicates the current element is  the  tail
+                     element.
+
+         IWRSET:     I/O Reset.  A word set  to  non-zero  when  an  I/O
+                     request  is  nulled in which case the I/O operation
+                     is not initiated and the user is not signalled.  An
+                     I/O  operation  in progress for a nulled request is
+                     carried to completion.
+
+         IQIPI:      IORB Process ID.  A byte containing the ID  of  the
+                     user  process  which generated the $SIO request for
+                     the associated IORB.
+
+         IQIVI:      IORB Virtual Address Space ID.  A  byte  containing
+                     the address space ID of the associated IORB.
+
+         IQIVA:       IORB  Virtual  Address.   A  word  containing  the
+                     address of the associated IORB.
+
+         IQNAM:      Device Name.  A word containing  the  RAD50  device
+                     name code.
+
+         IQUNIT:     Unit Number.  A word  containing  the  device  unit
+                     number.
+
+         IQOPC:      I/O Op-code.  A byte containing the user  specified
+                     op-code  to  be  issued  upon  the  I/O  completion
+                     signal.
+
+         IQUVI:      User Buffer  Virtual  Address  Space  ID.   A  byte
+                     containing    the   address   space   ID   of   the
+                     user-specified data buffer.
+
+         IQUVA:      User Buffer Virtual Address.  A word containing the
+                     virtual  address of the user specified data buffer.
+                     This  word  is   updated   during   segmented   I/O
+                     operations.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  95
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         IQFCN:      I/O Function.  A word containing the requested  I/O
+                     function.  The lo-order byte contains the specified
+                     I/O function code; the hi-order byte  contains  the
+                     device dependent parameters.
+
+         IQBR:       Bytes Requested.  A word containing the  number  of
+                     bytes   to  be  transferred  or  operations  to  be
+                     performed for the specified function.  This word is
+                     updated during segmented I/O operations.
+
+         IQSTA:      Status.  A word containing the status  of  the  I/O
+                     operation.   IQSTA  is  only  set  for IOX detected
+                     errors, at which time the I/O request is aborted.
+
+         IQBX:       Bytes transferred.  A word containing the number of
+                     bytes  transferred  or I/O operations performed for
+                     the specified I/O request.  This  word  is  updated
+                     for segmented I/O.
+
+         IQBHA:      Device Byte Address High.  A  word  containing  the
+                     hi-order 16 bits of the 32 bit device byte address.
+                     This word is updated for segmented I/O.
+
+         IQBLA:      Device Byte Address Low.   A  word  containing  the
+                     lo-order 16 bits of the 32 bit device byte address.
+                     This word is updated for segmented I/O.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  96
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+                     FIGURE 4.1
+
+
+                      IORQE  I/O REQUEST QUEUE ELEMENT
+
+                +-----------------+
+              0 !      IQLNK      !
+                !-----------------!
+              2 !      IQRSET     !
+                !-----------------!
+              4 ! IQIVI  ! IQIPI  !
+                !-----------------!
+              6 !      IQIVA      !
+                !-----------------!
+             10 !      IQNAM      !
+                !-----------------!
+             12 !      IQUNIT     !
+                !-----------------!
+             14 ! IQUVI  ! IQOPC  !
+                !-----------------!
+             16 !      IQUVA      !
+                !-----------------!
+             20 !      IQFCN      !
+                !-----------------!
+             22 !      IQBR       !
+                !-----------------!
+             24 !      IQSTA      !
+                !-----------------!
+             26 !      IQBX       !
+                !-----------------!
+             30 !      IQBHA      !
+                !-----------------!
+             32 !      IQBLA      !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  97
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         5.0 DCTNT - Device Name Table
+
+
+              The device name  table  is  used  by  the  I/O  management
+         primitives  to map a user specified device name and device unit
+         number into a DCT address.   The  table  is  accessed  via  the
+         global '$DCTNT'.
+
+              The first word of  the  device  name  table  contains  the
+         number  of  device  name  entries.   The remainder of the table
+         consists of two word device name entries.  The  first  word  of
+         each entry contains the device name RAD50 code; the second word
+         of each entry contains the address  of  the  associated  device
+         unit table.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  98
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         FIGURE 5.1
+
+
+                 DEVICE NAME TABLE
+
+                +-----------------+
+        $DCTNT: !    # ENTRIES    !
+                !-----------------!
+                !    RAD50 NAME   !
+                !-----------------!
+                !  UNIT TBL ADR   !
+                !-----------------!
+                !    RAD50 NAME   !
+                !-----------------!
+                !  UNIT TBL ADR   !
+                !-----------------!
+                !       ETC.      !
+                .                 .
+                .                 .
+                .                 .
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page  99
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         6.0 DCTUT - Device Unit Table
+
+
+              For each device name there  exists  a  device  unit  table
+         which contains the DCT address for each of the device units.
+
+
+            Word 0:        Maximum unit for which a DCT address exists.
+
+            Word 1:        Device name semaphore ID.
+
+            Word 2,...,N:  The remaining words contain the DCT addresses
+                        for  the  relative  unit  number  positions.   A
+                        content of zero indicates no DCT exists for  the
+                        given unit number.  An odd address indicates the
+                        DCT has not been  defined  for  the  given  unit
+                        number.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 100
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         FIGURE 6.1
+
+
+                 DEVICE UNIT TABLE
+
+                +-----------------+
+        $DCTUT: !     # UNITS     !
+                !-----------------!
+                ! DEV NAME SEM ID !
+                !-----------------!
+                ! UNIT 0 DCT ADR  !
+                !-----------------!
+                .                 .
+                .                 .
+                .                 .
+                !-----------------!
+                ! UNIT N DCT ADR  !
+                +-----------------+
+         v
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 101
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         7.0 DCTCT - Device Channel Table
+
+
+              The  device  channel  table  is  used  to  coordinate  I/O
+         operations  within  the  context  of shared channels and shared
+         controllers.  A set of logical channels  are  declared  at  DCT
+         generation  time,  and  at  run time a semaphore is assigned to
+         each of the logical channels.
+
+
+            Word 0:        Number of logical channels.  Channel 0 is not
+                        used.
+
+            Bytes  3,...,N:   These  bytes  correspond  to  the  logical
+                        channels,  each  byte  contains the semaphore ID
+                        assigned to the associated channel.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 102
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+                        FIGURE 7.1
+
+
+                                DEVICE CHANNEL TABLE
+
+                +-----------------+
+        $DCTCT: !  # CHANNELS     !
+                !-----------------!
+                ! CHNL 1 !        !
+                ! SEMID1 !   0    !     
+                !-----------------!
+                ! CHNL 3 ! CHNL 2 !
+                ! SEMID  ! SEMID  !
+                !-----------------!    
+                .                 .
+                .                 .
+                .                 .
+                !-----------------!
+                ! CHNL N !CHNL N-1!
+                ! SEMID  ! SEMID  !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 103
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         8.0 DCTVT - DCT Vector Table
+
+
+
+              Each ICT is connected to a group of zero or more  DCTs  by
+         means  of  a list of DCT addresses.  The address of the list is
+         contained in the ICT word labelled ICTDCT.
+
+              The first word of the DCTVT Table contains the  number  of
+         related DCTs; the remaining words contain the DCT addresses.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 104
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         FIGURE 8.1
+
+
+                 DCT VECTOR TABLE
+
+                +-----------------+
+        $DCTVT: !    # ENTRIES    !
+                !-----------------!
+                !     DCT ADR     !
+                !-----------------!
+                .                 .
+                .                 .
+                .                 .
+                !-----------------!
+                !     DCT ADR     !
+                +-----------------+
+         v
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 105
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         9.0 ICTVT - ICT Vector Table
+
+
+              Each DCT is connected to a group of zero or more  ICTs  by
+         means  of  a  list  of  ICT  addresses.  The address of the ICT
+         vector table is specified by the DCT word labelled DCTICT.
+
+              The first word of ICTVT contains the number  of  specified
+         ICTs; the remaining words contain the ICT addresses.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 106
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+         FIGURE 9.1
+
+
+                 ICT VECTOR TABLE
+
+                +-----------------+
+        $ICTVT: !    # ENTRIES    !
+                !-----------------!
+                !     ICT ADR     !
+                !-----------------!
+                .                 .
+                .                 .
+                .                 .
+                !-----------------!
+                !     ICT ADR     !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 107
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+             PROCESS MESSAGE QUEUE ELEMENTS
+
+                +-----------------+
+         $PMQ:  !      HEAD       !             ;POINTER TO FIRST FREE
+                !                 !              ELEMENT 
+                !-----------------!
+                !      NPMQE      !             ;NUMBER OF FREE ELEMENTS
+                !-----------------!
+                !      PNTR       !             ;POINTER TO NEXT FREE
+                !                 !              ELEMENT
+                !-----------------!
+                !      OPCODE     !
+                !-----------------!
+                !      DATA       !
+                !-----------------!
+                !      PNTR       !
+                !-----------------!
+                !      OPCODE     !
+                !-----------------!
+                !      DATA       !
+                !-----------------!
+                !      ETC.       !
+
+
+               FREE SEMAPHORE ELEMENTS
+
+                +-----------------+
+        $FRSEM: !      HEAD       !             ;POINTER TO FIRST FREE
+                !                 !              ELEMENT
+                !-----------------!
+                !      NFSEM      !             ;NUMBER OF FREE ELEMENTS
+                !-----------------!
+                !      PNTR       !             ;POINTER TO NEXT FREE
+                !                 !              ELEMENT
+                !-----------------!
+                !      PCTID      !
+                !-----------------!
+                !      DATA       !
+                !-----------------!
+                !      PNTR       !
+                !-----------------!
+                !      PCTID      !
+                !-----------------!
+                !      DATA       !
+                !-----------------!
+                !      ETC.       !
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 108
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+               SEMAPHORE STORAGE ALLOCATION
+
+                +-----------------+
+        $SIDTB: !      NSEMS      !
+                !-----------------!
+                !      000001     !             ;A ONE INDICATES A FREE
+                !                 !              SEMAPHORE
+                !-----------------!
+                !      000000     !             ;RESERVE STORAGE FOR
+                !                 !              SEMAPHORE
+                !-----------------!
+                !      000001     !
+                !-----------------!
+                !      000000     !
+                !-----------------!
+                !      ETC.       !
+
+
+
+                   SEMAPHORE ID.
+
+                +-----------------+
+              0 !      HEAD       !             ;POINTER TO FIRST QUEUED
+                !                 !              ELEMENT
+                !-----------------!
+              2 !      TAIL       !             ;POINTER TO LAST QUEUED
+                !                 !              ELEMENT
+                +-----------------+
+
+
+                TIMER QUEUE ELEMENT
+
+                +-----------------+
+              0 !        !   PID  !
+                !-----------------!
+              2 !    TIME VALUE   !
+                !-----------------!
+              4 !       LINK      !             ;LINK TO NEXT QUEUE
+                !                 !              ELEMENT
+                +-----------------+
+
+
+                PROCESS READY QUEUE
+
+                +-----------------+
+        PRQ:  0 !     PRQNXT      !             ;POINTER TO NEXT PRQ+2
+                !-----------------!
+              2 !      PRQHD      !             ;POINTER TO HEAD PCT
+                !-----------------!
+              4 !      PRQTL      !             ;POINTER TO TAIL PCT
+                !-----------------!
+              6 !        ! PRQID  !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 109
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+                 PROCESS CONTROL TABLE
+
+                +-----------------+
+        PCT:  0 !      PCTNXT     !
+                !-----------------!
+              2 ! PCTWT  ! PCTCC  !
+                !-----------------!
+              4 !      PCTKSP     !
+                !-----------------!
+              6 !      PCTPRQ     !
+                !-----------------!
+             10 ! PCTVID ! PCTPID !
+                !-----------------!
+             12 !      PCTCP0     !
+                !-----------------!
+             14 !                 !
+                !      PCTTIM     !
+             16 !                 !
+                !-----------------!
+             20 !      PCTPGF     !
+                !-----------------!
+             22 !      PCTPRI     !
+                !-----------------!
+             24 ! PCTSL  ! PCTCL  !
+                !-----------------!
+             26 ! PCTCOP ! PCTCID !
+                !-----------------!
+             30 !      PCTMQH     !
+                !-----------------!
+             32 !      PCTMQT     !
+                !-----------------!
+             34 !      PCTPRV     !
+                !-----------------!
+             36 !                 !
+                !      PCTBPT     !
+             40 !                 !
+                !-----------------!
+             42 !                 !
+                !      PCTIOT     !
+             44 !                 !
+                !-----------------!
+             46 !                 !
+                !      PCTTRP     !
+             50 !                 !
+                !-----------------!
+             52 !                 !
+                !      PCTFPU     !
+             54 !                 !
+                !-----------------!
+             56 !      PCTKSB     !
+                +-----------------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 110
+        SYSTEM TABLES AND DATA STRUCTURES
+
+
+        II.5  KERNEL PROCESS ERROR CODES
+
+        STORAGE MANAGEMENT ERROR CODES 200-247
+
+
+        PP1     =       201     VIRTUAL PAGE SHARED
+                                 OR READ/ONLY
+        PP2     =       202     VIRTUAL PAGE UNDEFINED
+        PP3     =       203     VIRTUAL PAGE IN I/O
+        PP4     =       204     VIRTUAL SHARE LINK ON
+        PP5     =       205     BAD SECONDARY STORAGE ADDRESS
+        PP6     =       206     PAGE LOCKED
+        PP7     =       207     ILLEGAL VIRTUAL PAGE NUMBER
+        VM1     =       210     UNPRIVILEGED $VMOV
+        LK1     =       211     TRIED TO LICK AVAILABLE PAGE
+        LP1     =       212     UNDEFINED VIRTUAL PAGE
+        LP2     =       213     UNALLOCATED VIRTUAL PAGE
+        LP3     =       214     PHYSICAL STORAGE TABLE IN I/O
+        LP4     =       215     NON-RESIDENT SHARE LINK
+        GV2     =       216     UNDEFINED VIRTUAL STORAGE MAP
+        VP1     =       217     BAD PHYSICAL STORAGE TABLE INDEX
+        PF0     =       220     KERNEL STACK POINTER 
+                                UPDATED ON PAGE FAULT
+        PF1     =       221     UNDEFINED OR UNALLOCATED PAGE
+        PF2     =       222     PAGE LENGTH FAULT
+        PF3     =       223     UNKNOWN PAGE FAULT CAUSE
+        PF4     =       224     NON-RESIDENT FAULT, BUT
+                                VIRTUAL PAGE RESIDENT
+        PF5     =       225     WRITE PROTECT FAULT, BUT
+                                VIRTUAL PAGE READ/ONLY
+        PF6     =       226     WRITE PROT. FAULT, BUT
+                                VIRT. PAGE R/O OR SHARED
+        PF7     =       227     VIRTUAL PAGE IN I/O
+        PF8     =       230     WRITE PROT. FAULT, BUT
+                                PST AVAIL. OR I/O
+        PF9     =       231     WRITE PROT. FAULT, BUT
+                        IVIRT. PAGE NON-RES.
+        PF10    =       241     MEM. TRAPS ILLEGAL ON PDP 11/40
+        VN1     =       232     SECONDAY STORAGE ADR. NOT IN PST
+        VN2     =       233     BAD VIRTUAL PAGE NUMBER
+        GS1     =       234     VIRT. PAGE UNDEFINED
+                                OR UNALLOCATED
+        VI1     =       235     VIRT. PAGE UNDEFINED
+                                OR UNALLOCATED
+        GV1     =       236     BAD VIRTUAL PAGE NUMBER
+        GV3     =       237     BAD VSM 
+        VM2     =       240     $VMOV TO READ ONLY PAGE
+
+
+
+        VIRTUAL STORAGE ALOCATION ERROR CODES 250-257
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 111
+         KERNEL ERROR CODES
+
+
+        AVSERC  =       250     INVALID ALLOCATION COUNT
+                                 SPECIFIED
+        DVSER   =       251     ILLEGAL VSM SPEC. IN DELETE VSM
+        FVSER   =       252     ATTEMPT ALOC/FREE VIRTUAL
+                                 MORE THAN 32K
+
+
+
+        PROCESSOR MANAGEMENT ERROR CODES 300-337
+
+
+        STQERR  =       314     TIMER QUEUE ELEMENTS EXHAUSTED
+        IVEMT   =       315     ERROR CODE FOR INVALID EMT
+        SERIVS  =       316     INVALID SEMAPHORE ID
+        SERSXH  =       317     SEMAPHORE STORAGE EXHAUSTED
+        INVPID  =       320     INVALID PROCESS ID
+                                 ON FREEP OR ZAP
+        INVZAP  =       321     SUICIDE NOT LEGAL ON $ZAP
+        INVSIG  =       322     INVALID $SIGNAL PARAMETER
+        INVTHP  =       333     INVALID THAW - PROCESS
+                                 NOT FROZEN
+        SYSFRZ  =       300     SYSTEM TOP-LEVEL PROCESS FROZEN.
+        SMQERR  =       301     SYSTEM MQE STORAGE EXHAUSTED.
+
+
+
+        SYSTEM INITIALIZE ERROR CODES 350-357
+
+
+        PFERR   =       350     POWER FAILURE
+
+
+
+        SYSTEM UTILITY ERROR CODES 340-357
+
+
+        ERRNIM  =       340     UNIMPLEMENTED OP
+        ERRTRP  =       342     BUS ERROR
+        ERRILL  =       344     ILLEGAL INSTRUCTION
+        ERRUIO  =       346     UN-IMPLEMENTED OP
+
+
+
+        I/O AUXILARY ERROR CODES 260-267
+
+
+        IOXE    =       260     IOX ERROR CODE
+        RGBFE   =       261     RING BUFFER ERROR
+
+
+
+        I/O MANGER ERROR CODES 270-277
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 112
+         KERNEL ERROR CODES
+
+
+        SYSOL   =       272     SYSTEM UNABLE TO CREATE IOX
+        DCTERR  =       273     DCT FORMAT ERROR
+        IXNFZ   =       270     ERRONEOUS IOX FROZE OP-CODE
+        IOXFE   =       271     IOX FROZE BUT NO ACTIVE DCT
+
+
+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 113
+        THE ELF NETWORK CONTROL PROGRAM
+
+
+        III.1 The ELF Network Control Program
+
+        III.1.1 Introduction
+
+
+             This section describes the set of primitives available  for
+        establishing  and breaking connections between ELF processes and
+        processes distributed on the ARPA network.  These facilities are
+        performed  by  the  ELF  Network  Control  Program  (NCP), which
+        handles formatting of messages between Hosts on the network, and
+        adheres   to   network   standard  protocols.   In  addition  to
+        describing how connections are established,  the  material  here
+        describes  the  flow  of  data over connections, by means of the
+        inter-process communication facility resident in the ELF  system
+        (inter-process ports, or IPPs).
+
+
+        III.1.2 Definition of Terms
+
+
+             A Host is a processor  which  is  accessible  on  the  ARPA
+        network.   Host address consists of an 8 bit code, the low-order
+        6 bits of which correspond to an IMP  (node)  address,  and  the
+        high-order 2 bits correspond to a processor address connected to
+        the IMP.  (Thus, 4 processors (Hosts) may be physically attached
+        to a given IMP on the network).
+
+             A connection is a half-duplex  logical  data  path  between
+        processes  which  may  reside  on  the  same or differing Hosts.
+        Connections are established (opened) by NCP primitives, and data
+        is   transferred   over   those  connections  by  means  of  the
+        inter-process port facility.
+
+             A connection is NAMED (uniquely identified) by 72  bits  of
+        information.  This consists of 8 bits of remote Host address, 32
+        bits of remote "socket" number, and 32 bits  of  local  "socket"
+        number.   A  "socket"  number uniquely identifies a port through
+        which data may be transferred to a process.
+
+             In order to  create  the  connection,  processes  call  NCP
+        primitives,  passing the address of a "Connection Control Table"
+        (CCT)  -  a  table  of  information   describing   the   desired
+        connection; the address of this table is assumed in register 0.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 114
+        THE ELF NETWORK CONTROL PROGRAM
+
+
+        III.1.3 Means of Attachment to the Network
+
+
+             There are two primary means by which an ELF system  may  be
+        connected  to the ARPA network.  In the first of these, the Host
+        is classified as being a Local Host or a Distant Host.  In these
+        cases, the Host is physically connected to the IMP by means of a
+        Host-IMP special  interface.   The  primary  difference  between
+        these  lies  in  the length of cable connecting the Host and the
+        IMP  and   the   type   of   line   conditioning   (e.g.,   line
+        drivers/receivers)  used.   These  two  techniques are logically
+        identical, and utilize identical software support in ELF.
+
+             The second technique of  attaching  the  ELF  Host  to  the
+        network  is  the "Very-Distant" Host technique, which utilizes a
+        communication protocol between the Host and  the  IMP,  allowing
+        the  Host  to  be connected by means of an IMP modem (as is used
+        for inter-IMP communication).  The Very-Distant  Host  technique
+        provides  for error detection and correction (retransmission) of
+        data transfers between  the  Host  and  the  IMP.   Software  is
+        required  in  the  Elf  Host  to  support  this  low-level  line
+        discipline; referred to as the "Reliable Transmission  Package",
+        this  software  front-ends  the  normal  NCP in ELF to allow the
+        system to appear functionally identical to  a  standard  (local)
+        Host on the network.
+
+             Each  of  the  above  connection  techniques   requires   a
+        characteristic  I/O  driver in the ELF kernel, and configuration
+        of an appropriate "front-end" module in the ELF NCP.
+
+             I/O Interfaces to the ARPA Network currently  supported  in
+        ELF are: 1) the Host-Imp Special Interface designed and built at
+        the University of Illinois, referred to as the  ANTS  Interface;
+        2) a Host-Imp special interface designed and built at University
+        of  Southern  California  Information  Sciences  Institute  (ISI
+        Interface),  and the Very-Distant Host Interface manufactured by
+        A Consultant Corp., Santa Barbara.  In addition, a new  Host-IMP
+        special  interface  will be supported in the future; this is the
+        ARPA standard PDP-11 Host-IMP  Special  Interface,  designed  by
+        System Development Corporation.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 115
+        THE ELF NETWORK CONTROL PROGRAM
+
+
+        NCP Primitives
+
+
+             The following primitives allow creation/destruction of  NCP
+        connections,  in addition to general NCP service functions (such
+        as statistics):
+
+        1.   $N.CON  -  initiates  a  request  for  establishment  of  a
+             connection.   The  address  of  the CCT, which contains the
+             local/remote socket numbers, is assumed in RO.  (The CCT is
+             shown  below).  The calling process is notified (signalled)
+             when the connection is created, or when an error occurs  in
+             the process of creating the connection (such as destination
+             Host  is  dead).   The  $N.CON  primitive  returns  a  port
+             identifier  to  the calling process in register 1; once the
+             connection  reaches  an  "open"  state,  the  process   may
+             initiate  transfer  of  data  on  the connection using that
+             inter-process port.
+
+        2.   $N.LSN - initiates a request to form  a  "listening"  local
+             socket,  and  notify  when the connection is formed to that
+             socket.  No specific Host is given in the CCT in this case,
+             thus  allowing  formation  of the connection in a "passive"
+             sense, upon receipt of a remote request for  connection  to
+             that  socket  from  any  Host.   The process performing the
+             $N.LSN accepts or rejects the connection by issuance of the
+             $N.CON or $N.CLS primitives, respectively.
+
+        3.   $N.CLS - closes an existing connection, retracts a  pending
+             request  for connection issued by $N.CON, retracts a listen
+             request issued by $N.LSN, or rejects  a  completing  listen
+             request  (see $N.LSN).  The caller must pass the address of
+             a CCT in register 0.
+
+        4.   $NPSET - sets or retrieves NCP parameters.  A function code
+             is  supplied  to  the  $NPSET  primitive  in  the  low byte
+             register 0, with a function modifier in the  high  byte  of
+             register 0.  A value is passed to the primitive in register
+             1 for setting NCP parameters (e.g., turning on/off the  NCP
+             debugger); $NPSET functions which return a value (e.g., NCP
+             statistics)  do  so  in  register  1.   A  list  of  $NPSET
+             functions is shown below.
+
+             Once network connections are established (opened), data  is
+        transferred  by  means  of  the ELF inter-process port facility.
+        The process issuing a connect ($N.CON) primitive is  returned  a
+        port  identifier  which  is  used for subsequent data transfers.
+        The process uses an Input/Output Request Block to point  to  its
+        data  buffer  and indicate a requested number of bytes; the IORB
+        also contains an op-code with which  the  process  is  signalled
+        when  data  transfer  through  the  port  completes.   Thus, the
+        process communicates with a network connection in much the  same
+        way  as  it  would  to a sequential I/O device (e.g., teletype).
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 116
+        THE ELF NETWORK CONTROL PROGRAM
+
+
+        Processes may thus be signalled for two reasons: 1)  for  change
+        in  state  of  the  connection  (with  op-code  specified in the
+        initial CCT) and, 2) for completion  of  data  transfer  on  the
+        inter-process port (with op-code specified in the IPP IORB).
+
+
+
+                CCT Format
+
+
+                +------------------+
+                !       HOST       !
+                !------------------!
+                !   BS   !  STAT   !
+                !------------------!
+                !     LOCAL SCK    !
+                !------------------!
+                !     FGN  SCK     !
+                !     FGN  SCK     !
+                +------------------!
+                         !   OP    !
+                         +---------+
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 117
+        THE ELF NETWORK CONTROL PROGRAM
+
+
+        NCP Parameter-Set ($NPSET) Function Assignments
+
+
+                R0 LSB = FUNCTION CODE (OPERATION TO BE PERFORMED)
+                R0 MSB = FUNCTION MODIFIER, USED IN SOME OPERATIONS
+                R1 = PARAMETER, OR VALUE RETURNED.
+
+
+                $NPSET FUNCTIONS ARE CURRENTLY ASSIGNED AS FOLLOWS:
+
+                        0) SET/RESET NCP DEBUG MODE
+                        1) SET HOST DEBUG LIMITS (LSB IS LOW HOST ADDR,
+                                MSB IS HIGH HOST ADDR IN R1.)
+                        2) SET LINK DEBUG LIMITS (LSB IS LOW LINK NR,
+                                MSB IS HIGH LINK NR IN R1.)
+                        3) SET LOGGING DEVICE NAME (RAD50, IN R1).
+                        4) SET LOGGING DEVICE NUMBER, IN R1. 
+                                CAUSES NCP TO DEFINE ASSOCIATED DEVICE.
+                        5) OBTAIN NCP STATISTICS.  NCP STATISTICS
+                           IDENTIFIER ASSUMED IN HIGH BYTE R0, RETURNED
+                           VALUE IN R1.
+                        6) CLEAR NCP STATUS FLAGS
+                        7) SET NCP STATUS FLAGS.  OP'S 6  7
+                                                         ~
+                                ASSUME MASK IN R1.  NCP STATUS FLAGS ARE
+                                CURRENTLY ASSIGNED AS FOLLOWS:
+                                $NSTAT  BIT 0, NCP LOCAL LOOP ENABLE
+                                $NSTAT  BIT 7 ,  NCP DISABLE.(DRAIN)
+                        10) OBTAIN HOST ADDR OF SELF IN R1.
+                        11) RE-INITIALIZE NCP, CLOSING ALL CONNECTIONS
+                        12) EVALUATE NCP FREE MESSAGE QUEUE DEPTH
+                        13-15) UN-IMPLEMENTED.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 118
+        XNCP Description
+
+
+        III.1.2 XNCP - The Experimental Network Control Program
+
+
+
+             The XNCP has been implemented  as  a  standard  feature  of
+        ELF-II.   The  XNCP  gives  a  user  complete control of Network
+        Communication, bypassing the standard NCP (and the  HOST-to-HOST
+        protocol).   This provides a means by which network measurements
+        may be obtained, and new experimental protocols may be developed
+        (e.g., Network Voice Protocol, Inter-Network Protocol).
+
+             The XNCP has  two  functional  parts:  1)  creation  of  an
+        experimental  "connection"  (by $XLSN, $XCON, and $XCLS), and 2)
+        data transfer (by $SIO).
+
+             The connection control primitives use an XCCT (eXperimental
+        Connection  Control  Table)  to  define the connection and get a
+        "PORT" assigned to the connection by the system.  Hereafter, all
+        data-transfer  calls  refer to this PORT, by including it in the
+        IORB (Input Output Request Block).
+
+             Connections (LINKs) have to be defined (by $XLSN or  $XCON)
+        before they are used for data transfer (by $SIO).
+
+             Connections are defined as half duplex,  using  the  actual
+        LINK  identification.   Note  that the SOCKET notion is entirely
+        eliminated.  Hosts are defined by 9 bits (defining IMP, HOST and
+        the  to/from-IMP  bit),  and  LINKs  are  defined  by the 8 most
+        significant bits of  the  12-bits  LINK  field,  as  defined  in
+        BBN-1822 (March '74 revision).
+
+             The XNCP uses  the  new  SIGNAL/WAIT  features  of  ELF-II.
+        Three signals are used, two of which are associated with sending
+        and one with receiving.  The sending signals  happen  when:  (1)
+        The  message  is  entirely copied from the user buffers into the
+        XNCP buffers.   The  OP-CODE  used  for  signaling  is  the  one
+        supplied  in the XCCT.  (2) The message is entirely given to the
+        IMP.  The OP-CODE used is the one supplied  in  the  IORB.   The
+        receiving  signal  happens  when  (3)  an  arriving  message  is
+        entirely copied into the user buffer.  The OP-CODE used  is  the
+        one supplied in the IORB.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 119
+        XNCP Description
+
+
+             The first 32 bits of all messages are the  HOST/IMP  leader
+        (as defined in BBN-1822).
+
+             Note that it is the user's  responsibility  to  avoid  LINK
+        conflicts.
+
+             A possible scenario is as follows.  The user program wishes
+        to  communicate  with  link  "L" of host "H".  It issues first a
+        $XCON, using an XCCT which includes "H", "L", OP-CODE, and a bit
+        indicating  that this is a SND connection.  The system returns a
+        PORT number, which is inserted by the user  into  the  SND-IORB.
+        Then  the  program issues another $XCON pointing to another XCCT
+        which includes the same "H" and "L", and a bit  indicating  that
+        this  is  a RCV connection.  Note that no OP-CODE is needed now.
+        The system returns another PORT number, which is inserted by the
+        user  into  the  RCV-IORB.  From now on the program can send and
+        receive data over the network, just as  if  it  were  any  other
+        device.   At  the  end  of the session, a good citizenship is to
+        $XCLS both connections.
+
+
+        Possible errors:
+
+        201                     Undefined HOST.
+
+        202                     LINK &lt; 300 (i.e. not experimental).
+
+        203                     Attempt to close non-experimental
+                                connection.
+
+        204                     Attempt to close non-existing
+                                connection.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 120
+        XNCP Description
+
+
+        XCCT and IORB format:
+
+
+
+
+        XCCT:                   HOST (9 out of 16, as shown below)
+          +2:                   OP-CODE(8), STATUS(8)
+          +4:                   LINK(8), Unused(7), C(1)
+
+                                C in XCCT+4 is 0 for RCV
+                                C in XCCT+4 is 1 for SND
+
+
+
+
+        IORB:                   'IPP'   always
+          +2:                   PORT NUMBER(16)  
+          +4:                   FUNC(16)  (0=NOP, 1=READ, 2=WRITE)
+          +6:                   Unused(8), OP-CODE(8)  
+         +10:                   BUFFER ADDRESS(16)
+         +12:                   BR(16)   8-bit bytes requested
+         +14:                   ERROR(1), STATUS(15) 
+         +16:                   BX(16)   8-bit bytes transfered.
+         +20:                   used only for certain devices
+         +22:                   used only for certain devices
+
+
+                                STATUS =   0   for reset
+                                STATUS = 200   for normal completion
+                                STATUS > 200   for error  completion
+
+
+        HOST:  P,TXX,XXX,XHH,III,III  Where:   P = Priority,  T = TO-IMP
+        bit,
+        H = HOST-NUMBER and I = IMP-NUMBER.
+        Hence, the 9 bits defining HOSTS are: -,T--,---,-HH,III,III.
+
+
+        OP-CODEs  are  used  by  ELF-II  to  signal  the  process   upon
+        completion of the task.
+
+
+        STATUS and BX are set by ELF upon completion of the task.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 121
+        XNCP Description
+
+
+        Format of calls
+
+
+        (1)  LISTEN
+
+
+        MOV   #XCCT,R0 ---> XCCT: 0
+        $XLSN                     0
+        MOV   R1,PORT             LINK,0
+
+        Possible error: [202].
+
+
+        (2)  CONNECT
+
+
+        MOV   #XCCT,R0 ---> XCCT: HOST
+        $XCON                     OPCODE,0
+        MOV   R1,PORT             LINK,C
+
+        If this is a SND  connection,  then  C=1.   If  this  is  a  RCV
+        connection: C=0, and the OPCODE can be omitted.
+
+        Possible errors: [201] and [202].
+
+
+        (3)  SENDING MESSAGE
+
+
+        MOV   #IORB,R0 ---> IORB: 'IPP' (always)
+        $SIO                      PORT#
+                                  2     (for WRITE)
+                                  OPCODE
+                                  BUF -------------> BUF: HOST
+                                  BR                      LINK
+                                  STATUS                  .....
+                                  BX                      .....
+                                                          .....
+
+
+        BR is the number of 8-bit bytes requested.  BX is the number  of
+        bytes  transferred, and its value is inserted by the system.  On
+        SND, BX=BR always.  Note that BR has to be at  least  4,  as  it
+        includes the HOST/IMP 32 bit header.
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 122
+        XNCP Description
+
+
+        (4) RECEIVING MESSAGE
+
+
+        MOV   #IORB,R0 ---> IORB:  'IPP' (always)
+        $SIO                       PORT#
+                                   1     (for READ)
+                                   OPCODE
+                                   BUF -------------> BUF: .....
+                                   BR                      .....
+                                   STATUS                  .....
+                                   BX
+
+
+        If the arriving message is not  longer  than  BR  bytes,  BX  is
+        updated  to the actual number of arriving bytes (HOST/IMP HEADER
+        included).  Else, BX is set to BR, and the rest of  the  message
+        is lost.
+
+
+        (5)  CLOSING
+
+
+        MOV   #XCCT,R0 ---> XCCT:  HOST
+        $CLS                       0
+                                   LINK
+
+
+        If this connection was defined by $XLSN, then the  HOST  is  not
+        needed for the $XCLS.
+
+        If any message is pending (IN or OUT) when the $XCLS is  issued,
+        an error is signaled.
+
+
+        Possible errors: [203] and [204].
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 123
+        XNCP Description
+
+
+                      Example Program
+                      ---------------
+
+        Example program to RCV on link 377 and XMT same on 376.
+
+        RCVOP  = 1
+        SNDOP1 = 2
+        SNDOP2 = 4
+
+        START:  $XCON       #XCCT0 ; setup RCV cct
+                MOV         R1,IORB0+2 ; set PORT
+                $XCON       #XCCT1 ; setup SND cct
+                MOV         R1,IORB1+2 ; set PORT
+
+        LOOP:   $SIO        #IORB0 ; read
+                $WAITS      #RCVOP
+                MOV         IORB0+16,IORB1+12 ; BX(RCV) to BR(XMT)
+                $SIO        #IORB1 ; send
+                $WAITS      #SNDOP1
+                $WAITS      #SNDOP2
+                BR          LOOP
+
+        IORB0:  .RAD50      'IPP' ; device
+                .WORD       0 ; PORT filled in
+                .BYTE       RCVOP,0 ; OP-CODE
+                .WORD       #BUFFER ; BUFFER start address
+                .WORD       1 ; fcn = READ
+                .WORD       1100. ; BR
+                .WORD       0 ; status
+                .WORD       0 ; BX
+
+        IORB1:  .RAD50      'IPP' ; device
+                .WORD       0 ; PORT filled in
+                .BYTE       SNDOP2,0 ; OP-CODE
+                .WORD       #BUFFER ; BUFFER start address
+                .WORD       2 ; fcn = WRITE
+                .WORD       0 ; BR for SND filled in
+                .WORD       0 ; status
+                .WORD       0 ; BX
+
+        XCCT0:  .WORD       26 ; ISI-11/45
+                .WORD       0 ; OP-CODE (not used for RCV)
+                .BYTE       0,377 ; LINK, RCV(0)
+
+        XCCT1:  .WORD       26 ; ISI-11/45
+                .WORD       SNDOP1 ; OP-CODE
+                .BYTE       1,376 ; LINK, SND(1)
+
+        BUFFER: .BLKW       1100.
+
+                .END
+
+        ELF SYSTEM PROGRAMMER'S GUIDE               Page 124
+        XNCP Description
+
+
