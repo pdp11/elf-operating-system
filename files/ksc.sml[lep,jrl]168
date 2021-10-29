@@ -1,0 +1,1032 @@
+	.NLIST
+;	ELF75C.3
+;	KSC.SML		ELF SYSTEM MACRO DEFINETIONS
+;
+
+;	this sub-macro checks to see if enough
+;	aruments were specified
+
+	.macro	krtarg  n,l
+	.if  ge	n-l		;is the no. of arg. req.
+				;> or equal to this level?
+	.error			;required MACRO argument missing.
+	.endc
+	.endm	krtarg
+
+;	THIS SUB-MACRO GENERATES CODE TO PUT TWO
+;	'BYTE ARGUMENTS' INTO A REG.
+
+	.MACRO	GNCD2	A2,A1,REG
+	.IF DIF A1,REG
+	    .IF DIF A2,REG
+		.IF IDN A2,#1
+		    .IF IDN A1,#0
+	MOV #^O400,REG
+		    .ENDC
+		.IFF
+	CLR REG
+		    .IF DIF A2,#0
+	BISB A2,REG
+	SWAB REG
+		    .ENDC
+		.ENDC
+	    .IFF
+	CLRB REG
+	    .ENDC
+
+	    .IF DIF A1,#0
+		.IF IDN A1,#1
+		    .IF IDN A2,#1
+	MOV #^O401,REG
+		    .IFF
+	INC REG
+		    .ENDC
+		.IFF
+	BISB A1,REG
+		.ENDC
+	    .ENDC
+
+	.IFF
+	    .IF DIF A2,REG
+	SWAB REG
+	CLRB REG
+		.IF DIF A2,#0
+		    .IF IDN A2,#1
+	INC REG
+		    .IFF
+	BISB A2,REG
+		    .ENDC
+	.ENDC
+	SWAB REG
+	    .ENDC
+	.ENDC
+	.ENDM	GNCD2
+
+	.MACRO	STK2	A2,A1		; THIS MACRO PUTS TWO ARG IN ONE WORD ON STACK
+	.IF NB	A1
+	.IF NB	A2
+	.IF IDN	A2,#0
+	.IF IDN	A1,#0
+	CLR	-(SP)
+	.IFF
+	.IF IDN	A1,#1
+	MOV	#1,-(SP)
+	.IFF
+	CLR	-(SP)
+	MOVB	A1,(SP)
+	.ENDC
+	.ENDC
+	.IFF
+	.IF IDN	A2,#1
+	.IF IDN	A1,#1
+	MOV	#401,-(SP)
+	.IFF
+	MOV	#400,-(SP)
+	.IF DIF	A1,#0
+	MOVB	A1,(SP)
+	.ENDC
+	.ENDC
+	.IFF
+	CLR	-(SP)
+	MOVB	A2,(SP)
+	SWAB	(SP)
+	.IF IDN	A1,#1
+	INC	(SP)
+	.IFF
+	.IF DIF	A1,#0
+	MOVB	A1,(SP)
+	.ENDC
+	.ENDC
+	.ENDC
+	.ENDC
+	.IFF
+	.ERROR				; REQUIRED ARG. NOT SPECIFIED
+	.ENDC
+	.IFF
+	.ERROR				; REQUIRED ARG. NOT SPECIFIED
+	.ENDC
+	.ENDM	STK2
+
+;	THIS SUB-MACRO PUTS THE SPECIFIED ARGUMENT
+;	INTO A REGISTER, IF IT IS NOT ALREADY THERE.
+	.MACRO	GNCD	ARG,REG		; GENERATE CODE TO PUT ARG IN REG .
+	.IF  DIF REG,ARG		; IS ARG IN THE REG ALREADY?
+					;NO, THEN
+	.IF IDN	ARG,#0
+	CLR	REG			
+	.IFF
+	MOV	ARG,REG			
+	.ENDC
+	.ENDC
+	.ENDM	GNCD
+
+;	THIS SUB-MACRO PUTS A BYTE ARGUMENT INTO REG.
+;	
+
+	.MACRO	GNCDB	ARG,REG		;GEN. CODE TO PUT ARG INTO REG
+	.IF  DIF  REG,ARG		;IS ARG IN REG
+					;NO,
+	CLRB	REG			
+	.IF  DIF  ARG,#0
+	.IF  IDN  ARG,#1
+	INCB	REG
+	.IFF
+	BISB	ARG,REG			
+	.ENDC
+	.ENDC
+	.ENDC
+	.ENDM	GNCDB
+
+;	THIS SUB-MACRO CHECKS FOR CONFLICTS IN SPECIFCATIONS OF 
+;	ARGUMENTS IN REGISTERS.
+	.MACRO	CNFL	ARG,REG		;CHECK FOR CONFLICTING USE OF REGS.
+	.IF IDN	REG,ARG			;E.G. IS A0 THE SAME AS REG?
+	.ERROR	REG			;CONFLICTING USE OF SPECFIED REG.
+	.MEXIT
+	.ENDC
+	.ENDM	CNFL
+
+;	THIS IS THE MAIN SUB-MACRO THAT CALLS THE ABOVE SUB-MACROS.
+;	THE OVER ALL EFFECT IS TO GENERATE CODE THAT PUTS THE
+;	ARGUMENTS FROM THE MACRO CALLS INTO THE REGISTERS.
+	.MACRO	CHKGN	n,A0,A,A1,B,A2,C,A3,D,A4,E	;CHECK AND GEN. CODE
+	.IF NB	A0			;IS A0 SPECIFIED?
+	.IF NB  A1			;IS A1 SPECIFIED?
+    	.IF NB  A2			;IS A2 SPECIFIED?
+	.IF NB  A3			;IS A3 SPECIFIED?
+	.IF NB  A4			;IS A4 SPECIFIED?
+	CNFL  A0,R4			;CHECK FOR CONFLICTS
+	CNFL  A1,R4			;       "
+	CNFL  A2,R4			;	 "
+	CNFL  A3,R4			 ;	"
+	GNCD'E  A4,R4			;GEN. CODE FOR A4 .
+	.IFF
+	krtarg n,5			;was this arg. req.?
+	.ENDC
+	CNFL  A0,R3			;CHECK FOR CONFLICTS
+	CNFL  A1,R3			;	"
+	CNFL  A2,R3			;	"
+	 GNCD'D  A3,R3  		;GEN. CODE FOR A3 .
+	.IFF
+	krtarg n,4			;was this ag. req.?
+	.ENDC
+	CNFL  A0,R2			;CHECK FOR CONFLICTS
+	CNFL  A1,R2			;	"
+	GNCD'C  A2,R2			;GEN. CODE FOR A2 .
+	.IFF
+	krtarg n,3			;was this arg. req.?
+	.ENDC
+	CNFL  A0,R1			;CHECK FOR CONFLICTS
+	GNCD'B  A1,R1			;GEN CODE A1 .
+	.IFF
+	krtarg n,2			;was this arg. req.?
+	.ENDC
+	GNCD'A  A0,R0			;GEN CODE A0 .
+	.IFF
+	krtarg n,1			;was this arg. req.?
+	.ENDC
+	.ENDM	CHKGN
+
+;	THIS MACRO GENERATES AN IORB BLOCK FOR DOING $SIO'S.
+;	PARAMETERS NOT SPECIFIED DEFAULT TO ZERO.
+
+ .macro $IORB Devnam,Devunt,Opcode,Func,Bufloc,Buflen,VSM,Status,Reslen,BAH,BAL
+	.NCHR	NUM,DEVNAM		;GET NO. OF CHAR. IN DEVNAM
+	.IF	GE 3-NUM		;IS THERE 3 OR LESS?
+	.RAD50	/DEVNAM/		;GENERATE RAD50 WORD
+	.IFF				;NO, THEN THERE IS AN ERROR
+	.ERROR	DEVNAM	;DEVICE NAME IS LONGER THAN THREE CHARACTERS.
+	.ENDC
+	zdw	Devunt
+	zdb	<Opcode,VSM>
+	zdw	<Bufloc,Func,Buflen,Status,Reslen,BAH,BAL>
+	.endm	$IORB
+
+
+	.Macro	ZDW Arg
+	.irp	word,<Arg>
+	.if nb word
+	.word	word
+	.iff
+	.word	0
+	.endc
+	.endm
+	.endm	ZDW
+
+
+	.Macro	ZDB Arg
+	.irp	byte,<Arg>
+	.if nb byte
+	.byte	byte
+	.iff
+	.byte	0
+	.endc
+	.endm
+	.endm	ZDB
+
+	.MACRO	$CREAP	EPT,PRIO,EVNTCD,CAP,VSMID	;CREATE A PROCESS
+	STK2	CAP,EVNTCD
+	.IF NB	VSMID
+	STK2	VSMID,PRIO
+	.IFF
+	STK2	#0,PRIO
+	.ENDC
+	.IF  NB EPT			;WAS AN EPT SPEC?
+	MOV	EPT,-(SP)		;PUT ENTRY POINT ON STACK
+	.IFF
+	.ERROR				;AN ENTRY POINT WAS NOT SPECIFIED.
+	.ENDC
+	EMT	^O202			
+	.ENDM	$CREAP
+
+	.MACRO	$ERROR	ERRCD		;FREEZE OWN PROCESS WITHE ERROR
+	.if  nb  ERRCD			;was ERRCD specified?
+					;NO, THEN
+	MOV	#ERRCD,-(SP)		;PUT ERRCD ON STACK
+	.IFF
+	krtarg	1,1			;give error if ERRCD NOT specified.
+	.endc
+	EMT	^O213
+	.ENDM	$ERROR
+
+	.MACRO	$EXV	SEMID		;EXHAUSTIVE V OF SEMAPHORE
+	CHKGN	1,SEMID,B
+	EMT	^O207
+	.ENDM	$EXV
+	.MACRO	$WAITS	OP		;WAIT SPECIFIC
+	CHKGN	1,OP,B
+	EMT	^O237			;ISSUE WAIT SPECIFIC
+	.ENDM	$WAITS
+	.MACRO	$TSTQ
+	EMT	^O254
+	.ENDM
+
+	.MACRO	$TSTQS	OP
+	CHKGN	1,OP,B
+	EMT	^O255		; TEST QUEUE SPECIFIC
+	.ENDM	$TSTQS
+
+	.MACRO	$RTICC
+	EMT	^O257
+	.ENDM	$RTICC
+
+	.MACRO	$DSCHD
+	EMT	^O256
+	.ENDM	$DSCHD
+
+	.MACRO	$FREEP	PID,ERRCD	;FREEZE PROCESS
+	.IF	NB	PID		;IS PID SPECIFIED?
+	GNCDB	PID,R0			;YES, THEN PUT PID IN R0.
+	.IFF				;IF PID WASN'T SPECIFIED THEN,
+	CLR	R0			;DEFAULT TO ACTIVE PROCESS
+	.ENDC
+	.IF	NB	ERRCD		;WAS ERRCD SPECIFIED?
+	CNFL	ERRCD,R0		;VERIFY ERRCD NOT IN R0,
+	GNCDB	ERRCD,R1		; THEN GEN. CODE
+	.IFF				;NO ERRCD SPECIFIED,
+	CLR	R1			;GIVE DEFAULT OF  0.
+	.ENDC
+	EMT	^O203
+	.ENDM	$FREEP
+
+	.MACRO	$FSEM	SEMID		;FREE SEMAPHORE
+	CHKGN	1,SEMID,B
+	EMT	^O211
+	.ENDM	$FSEM
+
+	.MACRO	$GAPID			;GET ACTIVE PROCESS ID
+	EMT	^O245
+	.ENDM	$GAPID
+
+	.MACRO	$GETOD
+	EMT	^O242
+	.ENDM	$GETOD
+
+	.MACRO	$GPREG	REGNO,PID	;GET PROCESS' REGISTER
+	.NARG	ARGNO.
+	KRTARG	1,ARGNO.		;GIVE ERROR IF 2 ARG WERE NO SPEC.
+	GNCD2	REGNO,PID,R0		;PUT REGNO & PID INTO R0
+	EMT	^O224
+	.ENDM	$GPREG
+
+	.MACRO	$GTIME			;GET TIME-TO-GO FOR STIME INTERVAL
+	EMT	^O240
+	.ENDM	$GTIME
+
+	.MACRO	$ISEM			;INITIALIZE SEMAPHORE ID
+	EMT	^O210
+	.ENDM	$ISEM
+
+	.MACRO	$P	SEMID		;P A SEMAPHORE ID
+	CHKGN	1,SEMID,B
+	EMT	^O205
+	.ENDM	$P
+
+
+	.MACRO 	$REQ	SEMID,EVNTCD,DATA	;REQUEST A RESOURCE
+	.NARG	ARGNO.
+	KRTARG	2,ARGNO.
+	CNFL	DATA,R0
+	GNCD2	EVNTCD,SEMID,R0
+	GNCD	DATA,R1
+	EMT	^O227	
+	.ENDM	$REQ
+
+
+	.MACRO	$RSTRP	PID,ADR		;RESTART PROCESS
+	CHKGN	2,PID,B,ADR
+	EMT	^O226
+	.ENDM	$RSTRP
+
+	.MACRO	$SIGNL	PID,EVNTCD,DATA	;SIGNAL A PROCESS
+	.NARG	ARGNO.			;ARGNO.=NO. OF ARG SPECIFIED.
+	KRTARG	2,ARGNO.		;WAS ENOUGH ARG. SPECIFIED
+	CNFL	DATA,R0			;IS THERE A CONFLICT IN REGISTERS
+	GNCD2	EVNTCD,PID,R0		;GEN. CODE FOR REG 0
+	GNCD	DATA,R1			;PUT DATA INTO R1
+	EMT	^O201
+	.ENDM	$SIGNL
+
+	.MACRO	$SGNLI	PID,EVNTCD,DATA	;SIGNAL BY INTERRUPT ROUTINE
+	.NARG	ARGNO.			;ARGNO.=NO. OF ARG SPECIFIED.
+	KRTARG	2,ARGNO.		;WAS ENOUGH ARG. SPECIFIED
+	CNFL	DATA,R0			;IS THERE A CONFLICT IN REGISTERS
+	GNCD2	EVNTCD,PID,R0		;GEN. CODE FOR REG 0
+	GNCD	DATA,R1			;PUT DATA INTO R1
+	EMT	^O221			;WAKE UP A PROCESS BY INTERRUPT
+	.ENDM	$SGNLI
+
+	.MACRO	$DFDEV	DNAM,UNIT
+	CHKGN	2,DNAM,,UNIT
+	EMT	^O214	;DEFINE A DEVICE
+	.ENDM	$DFDEV
+
+	.MACRO	$UDDEV	DNAM,UNIT
+	CHKGN	2,DNAM,,UNIT
+	EMT	^O215	;UN-DEFINE A DEVICE
+	.ENDM	$UDDEV
+
+	.MACRO	$ASDEV	DNAM,UNIT,PIDA,PIDB
+	.NARG	ARGNO.
+	KRTARG	3,ARGNO.
+	CNFL	DNAM,R2
+	CNFL	UNIT,R2
+	GNCD2	PIDA,PIDB,R2
+	CHKGN	2,DNAM,,UNIT
+	EMT	^O216	;ASSIGN A DEVICE
+	.ENDM	$ASDEV
+
+	.MACRO	$RLDEV	DNAM,UNIT,PIDA,PIDB
+	.NARG	ARGNO.
+	KRTARG	3,ARGNO.
+	CNFL	DNAM,R2
+	CNFL	UNIT,R2
+	GNCD2	PIDA,PIDB,R2
+	CHKGN	2,DNAM,,UNIT
+	EMT	^O217	;RELEASE (DE-ASSIGN) A DEVICE
+	.ENDM	$RLDEV
+
+	.MACRO	$REMTX	EMTCODE
+	CHKGN	1,EMTCODE,B
+	EMT	XXX
+	.ENDM	$REMTX
+
+	.MACRO	$SIO	IORBA
+	CHKGN	1,IORBA
+	EMT	^O220
+	.ENDM	$SIO
+
+	.MACRO	$HIO	IORBA
+	CHKGN	1,IORBA
+	EMT	^O241
+	.ENDM	$HIO
+
+	.MACRO	$SEMTX	VSMID,CAP,EMTCD,EMTXFR	;SET EMT EXIT
+	.NARG	ARGNO.
+	KRTARG	3,ARGNO.
+	CNFL	VSMID,R2
+	CNFL	CAP,R2
+	CNFL	EMTCD,R2
+	GNCD	EMTXFR,R2
+	CNFL	VSMID,R2
+	GNCD2	CAP,EMTCD,R1
+	GNCD2	VSMID,R0,R0
+	EMT	^O244
+	.ENDM	$SEMTX
+
+	.MACRO	$SETOD	HTOD,LTOD	;SET TIME OF DAY
+	CHKGN	2,HTOD,,LTOD
+	EMT	^O243
+	.ENDM	$SETOD
+
+
+	.MACRO	$SPREG	REGNO,PID,VAL	;SET PROCESS REGISTER
+	.NARG	ARGNO.
+	KRTARG	2,ARGNO.
+	CNFL	VAL,R0
+	GNCD2	REGNO,PID,R0
+	GNCD	VAL,R1
+	EMT	^O225
+	.ENDM	$SPREG
+
+	.MACRO	$STIME	EVNTCD,INTRVL	;SET TIMER 
+	CHKGN	2,EVNTCD,B,INTRVL
+	EMT	^O212
+	.ENDM	$STIME
+
+	.MACRO	$THAWP	PID		;THAW A PROCESS
+	CHKGN	1,PID,B
+	EMT	^O223
+	.ENDM	$THAWP
+
+	.MACRO	$V	SEMID		;V A SEMAPHORE ID
+	CHKGN	1,SEMID,B
+	EMT	^O206
+	.ENDM	$V
+
+	.MACRO	$WAIT			;WAIT FOR AN EVENT
+	EMT	^O200
+	.ENDM	$wait
+
+	.MACRO	$ZAP	PID		;ZAP OR KILL A PROCESS
+	CHKGN	1,PID,B
+	EMT	^O204
+	.ENDM	$ZAP
+
+	.macro	$avs	bytcnt,vsmid	;allocate virt. stor.
+	chkgn	1,bytcnt,,vsmid,B
+	.IF  B	VSMID
+	CLR	R1
+	.ENDC
+	emt	^O232
+	.endm	$avs
+
+	.macro	$avspg	bytcnt,vsmid	;allocate virt. stor. within a page.
+	chkgn	1,bytcnt,,vsmid,B
+	.IF  B	VSMID
+	CLR	R1
+	.ENDC
+	emt	^O235
+	.endm	$avspg
+
+	.macro	$avspf	bytcnt,vsmid,vadr	;allocate virt. stor. specific
+	chkgn	1,BYTCNT,,vsmid,B,vadr
+	.IF B VSMID
+	CLR	R1
+	.ENDC
+	.IF  B	VADR
+	KRTARG	1,1
+	.ENDC
+	emt	^O234
+	.endm	$avspf
+
+	.MACRO $FVS	BYTCNT,VSMID,VADR	;FREE VIRT. STOR.
+	CHKGN	1,BYTCNT,,VSMID,B,VADR
+	.IF B VSMID
+	CLR	R1
+	.IF NB VADR
+	.IF DIF R2,VADR
+	MOV	VADR,R2
+	.ENDC
+	.ENDC
+	.ENDC
+	.IF  B	VADR
+	KRTARG	1,1
+	.ENDC
+	EMT	^O233
+	.ENDM	$FVS
+
+	.macro	$cvas			;creat virt. adr. space
+	emt	^O230
+	.endm	$cvas
+
+	.macro	$ivas	vsmid		;initialize virt. adr. space.
+	.IF  NB	VSMID
+	GNCDB	VSMID,R1
+	.IFF
+	CLR	R1
+	.ENDC
+	emt	^O236
+	.endm	$ivas
+
+	.macro	$dvas	vsmid		;delete virt. adr. space
+	.IF  NB	VSMID
+	GNCDB	VSMID,R1
+	.IFF
+	CLR	R1
+	.ENDC
+	emt	^O231
+	.endm	$dvas
+
+	.MACRO	$SVST
+	JSR	R5,$SVST		;SAVE PROCESS STATUS
+	.ENDM
+	.MACRO	$LDST			;LOAD (SETUP) PROCESS STATUS
+	JSR	R5,$LDST		;INIT PROCESS REGISTERS
+	.ENDM
+
+	.MACRO	$RTI
+	EMT	^O222
+	.ENDM	$RTI
+
+
+	.MACRO	$PUSH	A,B,C,D,E,F,G
+	.IF	NB	A
+	MOV	A,-(SP)
+	.ENDC
+	.IF	NB	B
+	MOV	B,-(SP)
+	.ENDC
+	.IF	NB	C
+	MOV	C,-(SP)
+	.ENDC
+	.IF	NB	D
+	MOV	D,-(SP)
+	.ENDC
+	.IF	NB	E
+	MOV	E,-(SP)
+	.ENDC
+	.IF	NB	F
+	MOV	F,-(SP)
+	.ENDC
+	.IF	NB	G
+	MOV	G,-(SP)
+	.ENDC
+	.ENDM	$PUSH
+
+	.MACRO	$POP	A,B,C,D,E,F,G
+	.IF	NB	A
+	MOV	(SP)+,A
+	.ENDC
+	.IF	NB	B
+	MOV	(SP)+,B
+	.ENDC
+	.IF	NB	C
+	MOV	(SP)+,C
+	.ENDC
+	.IF	NB	D
+	MOV	(SP)+,D
+	.ENDC
+	.IF	NB	E
+	MOV	(SP)+,E
+	.ENDC
+	.IF	NB	F
+	MOV	(SP)+,F
+	.ENDC
+	.IF	NB	G
+	MOV	(SP)+,G
+	.ENDC
+	.ENDM	$POP
+
+
+	.MACRO	$ASPAG	FLNUM
+	CHKGN	1,FLNUM
+	EMT	^O264
+	.ENDM
+
+	.MACRO	$DEFPG	VPA,SSA,PSTNDX
+	CHKGN	3,VPA,,SSA,,PSTNDX
+	EMT	^O262
+	.ENDM	$DEFPG
+
+	.MACRO	$UDFPG	VPA
+	CHKGN	1,VPA
+	EMT	^O263
+	.ENDM	$UDFPG
+
+	.MACRO	$PMAP	DPST,SVPA
+	CHKGN	2,DPST,,SVPA
+	EMT	^O271
+	.ENDM	$PMAP
+
+	.MACRO	$VMAP	DVPA,SVPA
+	CHKGN	2,DVPA,,SVPA
+	EMT	^O272
+	.ENDM	$VMAP
+
+	.MACRO	$VTRAP	NEWPC,VID,CAP
+	STK2	VID,CAP
+	.IF NB	NEWPC
+	$PUSH	NEWPC
+	.IFF
+	.ERROR				; REQUIRED ARG NOT SPECIFIED
+	.ENDC
+	EMT	^O273
+	.ENDM	$VTRAP
+
+	.MACRO	$VRTI
+	EMT	^O274
+	.ENDM	$VRTI
+
+	.MACRO	$DASPG	SSA
+	CHKGN	1,SSA
+	EMT	^O265
+	.ENDM	$DASPG
+
+	.MACRO	$MTPI	A,B
+	.IF NB	B
+	.NTYPE	MTPI.A,A
+	.NTYPE	MTPI.B,B
+MTPI.A	= MTPI.A&7
+MTPI.B	= MTPI.B&7
+	.IF NE	MTPI.A-MTPI.B
+	.ERROR	; INCONSISTENT ADDRESS SPECS FOR $MTPI
+	.ENDC
+	.ENDC
+	.IF EQ P1140-1
+	.IFF
+	MOV	@#PS,R0			;NOTE THAT R0 GETS CLOBBERED
+	$DSABL				;RUN MASKED
+	.IF NB	B
+	MFPI	B			;FORCE RESIDENCE OF CELL
+	.IFF
+	MFPI	A			;FORCE RESIDENCE OF CELL
+	.ERROR	; $MTPI 2ND ARGUMENT OMITTED - DEFAULTING TO 1ST ARG
+	.ENDC
+	TST	(SP)+			;RESTORE STACK
+	.IFTF
+	MTPI	A			;MOVE DATA TO CELL
+	.IFF
+	MOV	R0,@#PS			;RESTORE PSW
+	.ENDC
+	.ENDM
+
+	.MACRO	$VMOV	A,B,C,D,E
+	.IF NE 	PMMGMT
+	GNCD2	A,B,R0
+	CHKGN	4,R0,,C,,D,,E
+	EMT	^O260
+	.IFF
+	CHKGN	4,R0,,C,,D,,E
+	$PUSH	R1,R2,R3
+	MOV	(R1)+,(R2)+
+	DEC	R3
+	BGT	.-4
+	$POP	R3,R2,R1
+	.ENDC
+	.ENDM
+
+	.MACRO	$VMOVB	A,B,C,D,E
+	.IF NE	PMMGMT
+	GNCD2	A,B,R0
+	CHKGN	4,R0,,C,,D,,E
+	EMT	^O261
+	.IFF
+	CHKGN	4,R0,,C,,D,,E
+	$PUSH	R1,R2,R3
+	MOVB	(R1)+,(R2)+
+	DEC	R3
+	BGT	.-4
+	$POP	R3,R2,R1
+	.ENDC
+	.ENDM
+
+	.MACRO	$LOOP REG,BRCHPT
+	.IF EQ P1140!P1145-1
+	SOB	REG,BRCHPT		;LOOP BACK
+	.IFF
+	DEC	REG			;LOOP
+	BGT	BRCHPT			;BACK
+	.ENDC
+	.ENDM
+
+	.MACRO	$KPSET
+	EMT	^O252
+	.ENDM	$KPSET
+	.MACRO	$DEVC,A,B,C,D
+	CHKGN	4,A,,B,,C,,D
+	EMT	^O253
+	.ENDM	$DEVC
+
+
+	.MACRO	$ENABL			;ENABLE SYSTEM INTERRUPTS
+	.IF EQ	P1145-1
+	SPL	0			;ENABLE INTERRUPTS
+	.IFF
+	BIC	#^O340,@#PS		;ENABLE INTERRUPTS
+	.ENDC
+	.ENDM	$ENABL
+
+	.MACRO	$DSABL			;DISABLE SYSTEM INTERRUPTS
+	.IF EQ	P1145-1
+	SPL	7			;DISABLE INTERRUPTS
+	.IFF
+	BIS	#^O340,@#PS		;DISABLE INTERRUPTS
+	.ENDC
+	.ENDM	$DSABL
+
+	.macro	$MUL	a,bb,c
+	.if dif	a,r2
+	mov	r2,-(sp)
+	mov	a,r2
+	.endc
+	.if dif	bb,r0
+	mov	r0,-(sp)
+	mov	bb,r0
+	.endc
+	.if b	c
+		.IF DIF BB,R1
+	mov	r1,-(sp)
+		.ENDC
+	.iff
+		.if dif	c,r1
+	mov	r1,-(sp)
+		.endc
+	.endc
+	.IF NE	P1145!PMDV
+	.IFT
+	MUL	R2,R0
+	.IFF
+	emt	^O246
+	.ENDC
+	.if b	c
+		.if dif	bb,r1
+	mov	r1,bb
+	mov	(sp)+,r1
+		.endc
+		.IF DIF BB,R0
+	MOV	(SP)+,R0
+		.ENDC
+	.iff
+		.if dif	c,r1
+	mov	r1,c
+	mov	(sp)+,r1
+		.endc
+		.if dif	bb,r0
+	mov	r0,bb
+	mov	(sp)+,r0
+		.endc
+	.endc
+	.if dif	a,r2
+	mov	(sp)+,r2
+	.endc
+	.endm	$MUL
+
+	.macro	$MULU	a,bb,c
+	.if dif	a,r2
+	mov	r2,-(sp)
+	mov	a,r2
+	.endc
+	.if dif	bb,r0
+	mov	r0,-(sp)
+	mov	bb,r0
+	.endc
+	.if b	c
+		.IF DIF BB,R1
+	mov	r1,-(sp)
+		.ENDC
+	.iff
+		.if dif	c,r1
+	mov	r1,-(sp)
+		.endc
+	.endc
+	emt	^O247
+	.if b	c
+		.if dif	bb,r1
+	mov	r1,bb
+	mov	(sp)+,r1
+		.endc
+		.IF DIF BB,R0
+	MOV	(SP)+,R0
+		.ENDC
+	.iff
+		.if dif	c,r1
+	mov	r1,c
+	mov	(sp)+,r1
+		.endc
+		.if dif	bb,r0
+	mov	r0,bb
+	mov	(sp)+,r0
+		.endc
+	.endc
+	.if dif	a,r2
+	mov	(sp)+,r2
+	.endc
+	.endm	$MULU
+
+	.macro	$DIV	a,bb,c
+	.if dif	a,r2
+	mov	r2,-(sp)
+	mov	a,r2
+	.endc
+	.if dif	c,r1
+	mov	r1,-(sp)
+	mov	c,r1
+	.endc
+	.if dif	bb,r0
+	mov	r0,-(sp)
+	mov	bb,r0
+	.endc
+	.IF NE	P1145!PMDV
+	.IFT
+	DIV	R2,R0
+	.IFF
+	emt	^o250
+	.ENDC
+	.if dif	bb,r0
+	mov	r0,bb
+	mov	(sp)+,r0
+	.endc
+	.if dif	c,r1
+	mov	r1,c
+	mov	(sp)+,r1
+	.endc
+	.if dif	a,r2
+	mov	(sp)+,r2
+	.endc
+	.endm	$DIV
+	.macro	$DIVU	a,bb,c
+	.if dif	a,r2
+	mov	r2,-(sp)
+	mov	a,r2
+	.endc
+	.if dif	c,r1
+	mov	r1,-(sp)
+	mov	c,r1
+	.endc
+	.if dif	bb,r0
+	mov	r0,-(sp)
+	mov	bb,r0
+	.endc
+	emt	^o251
+	.if dif	bb,r0
+	mov	r0,bb
+	mov	(sp)+,r0
+	.endc
+	.if dif	c,r1
+	mov	r1,c
+	mov	(sp)+,r1
+	.endc
+	.if dif	a,r2
+	mov	(sp)+,r2
+	.endc
+	.endm	$DIVU
+	.PAGE
+;NOTE:	FOLLOWING MACRO DOES NOT SET V BIT AS DESCRIBED IN PDP 11/45 HANDBOOK
+	.MACRO	$ASH COUNT,REG
+	.IF NE P1145!PMDV		;IF PROCESSOR =PDP 11/45 OR HAS MDV OPT
+	  .IFT				;  THEN DO;
+	    .IF GT COUNT		;    IF COUNT > 0
+	      .IFT			;      THEN DO;
+	        .IF GT COUNT-^D2	;        IF COUNT > 2
+	          .IFT			;          THEN DO;
+	ASH	#COUNT,REG    		;PERFORM REQUESTED SHIFT
+	          .IFTF			;            END;
+	          .IFF			;          ELSE DO;
+	            .REPT COUNT		;            THRU COUNT DO;
+	ASL	REG			;SHIFT ONE BIT LEFT
+	            .ENDR		;              END;
+	          .ENDC			;            END;
+	      .IFF			;      ELSE DO;
+	        .IF LT COUNT+^D2	;        IF COUNT < -2
+	          .IFT			;          THEN DO;
+	ASH	#COUNT,REG    		;PERFORM REQUESTED SHIFT
+	          .IFTF			;            END;
+	          .IFF			;          ELSE DO;
+	            .REPT -COUNT 	;            THRU -COUNT DO;
+	ASR	REG			;SHIFT ONE BIT RIGHT
+	            .ENDR		;              END;
+	          .ENDC			;            END;
+	      .ENDC			;        END;
+	    .IFTF			;    END;
+	  .IFF				;  ELSE DO;
+	    .IF GT COUNT		;    IF COUNT > 0
+	      .IFT			;      THEN DO;
+	        .IF GE COUNT-^D8	;        IF COUNT >=8
+	          .IFT			;          THEN DO;
+	            .IF EQ COUNT-^D8 	;            IF COUNT = 8
+	              .IFT		;              THEN DO;
+	SWAB	REG			;SWAP HIGH AND LOW BYTES
+	ASRB	REG			;SET CARRY BIT
+	BICB	REG,REG			;CLEAR LOW BYTE W/O CLEARING CARRY BIT
+	                $ASCNT = ^D0 	;                AS_COUNT = 0;
+	              .IFTF		;                END;
+	              .IFF		;              ELSE DO;
+	SWAB	REG			;SWAP HIGH AND LOW BYTES
+	CLRB	REG			;CLEAR LOW BYTE
+	                $ASCNT=COUNT-^D8;                AS_COUNT = COUNT - 8;
+	              .ENDC		;                END;
+	          .IFTF			;            END;
+	          .IFF			;          ELSE DO;
+	            $ASCNT = COUNT 	;            AS_COUNT = COUNT;
+	          .ENDC			;            END;
+	        .REPT $ASCNT		;        THRU AS_COUNT DO;
+	ASL	REG			;SHIFT LEFT ONE BIT
+	        .ENDR			;          END;
+	      .IFTF			;        END;
+	      .IFF			;      ELSE DO;
+	        .IF LT COUNT+^D8	;        IF COUNT < -8
+	          .IFT			;          THEN DO;
+	CLRB	REG			;CLEAR LOW BYTE
+	SWAB	REG			;SWAP HIGH AND LOW BYTE
+	            $ASCNT = -COUNT-^D8	;            AS_COUNT = -COUNT - 8;
+	          .IFTF			;            END;
+	          .IFF			;          ELSE DO;
+	            $ASCNT = -COUNT 	;            AS_COUNT = -COUNT;
+	          .ENDC			;            END;
+	        .REPT $ASCNT		;        THRU AS_COUNT DO;
+	ASR	REG			;SHIFT RIGHT ONE BIT
+	        .ENDR			;          END;
+	      .ENDC			;        END;
+	    .ENDC			;    END;
+	.ENDM	$ASH
+;NOTE:	FOLLOWING MACRO DOES NOT SET N,V, OR Z BITS AS DESCRIBED IN PDP 11/45 MANUAL
+	.MACRO	$ASHC	COUNT,REG
+	.IF NE	P1145!PMDV		;IF PROCESS = PDP 11/45 OR HAS MDV OPT
+	  .IFT				;  THEN DO;
+	ASHC	#COUNT,REG     		;PERFORM REQUESTED SHIFT
+	  .IFTF				;    END;
+	  .IFF				;  ELSE DO;
+	    .IF LT COUNT		;    IF COUNT < 0
+	      .IFT			;      THEN DO;
+	        .REPT -COUNT		;        THRU -COUNT DO;
+	ASR	REG 			;SHIFT HIGH REGISTER RIGHT ONE BIT
+	ROR	REG+1 			;SHIFT LOW REGISTER RIGHT ONE BIT
+		.ENDR			;          END;
+	      .IFTF			;        END;
+	      .IFF			;      ELSE DO;
+	        .REPT COUNT		;        THRU COUNT DO;
+	ASL	REG+1 			;SHIFT LOW REGISTER LEFT ONE BIT
+	ROL	REG 			;SHIFT HIGH REGISTER LEFT ONE BIT
+	        .ENDR			;           END;
+	    .ENDC			;         END;
+	  .ENDC				;    END;
+	.ENDM	$ASHC
+
+	.MACRO	$XOR REG,DEST
+	.NTYPE	$XDT,DEST		;$XDT = XOR DESTINATION TYPE
+	.IF EQ <$XDT/20-1>*<$XDT/20-2>	;IF MODE IS AUTO-INC OR AUTO-DEC
+	  .IFT				;  THEN DO;
+	    .ERROR $XDT;MODE OF DESTINATION NOT SUPPORTED
+	  .IFTF				;    END;
+	  .IFF				;  ELSE DO;
+	    .IF NE P1145!PMDV		;    IF PROCESSOR HAS XOR INSTRUCTION
+	      .IFT			;      THEN DO;
+	XOR	REG,DEST    		;DEST = C(REG) XOR C(DEST)
+	      .IFTF			;        END;
+	      .IFF			;      ELSE DO;
+	        .IF EQ $XDT-16		;        IF MODE IS @SP
+	          .IFT			;          THEN DO;
+	.WORD	0			;LET DESTINATION = TOP OF STACK
+	.WORD	0			;LET A = C(REG) ; B = C(DESTINATION)
+	.=.-4				;BACK UP TO TWO WORDS
+	MOV	REG,-(SP)    		;STACK = A
+	BIC	2(SP),REG		;REG = A & \B
+	BIC	(SP),2(SP)		;DESTINATION = B & \A
+	BIS	REG,2(SP)    		;DESTINATION = (B & \A) ! (A & \B)
+	MOV	(SP)+,REG    		;REG = A ; STACK =
+	          .IFTF			;            END;
+	          .IFF			;          ELSE DO;
+	            .IF EQ <$XDT-<$XDT/10*10>-6> ;   IF MODE USES SP
+	              .IFT		;              THEN DO;
+	                .ERROR $XDT;MODE OF DESTINATION NOT SUPPORTED
+	              .IFTF		;                END;
+	              .IFF		;              ELSE DO;
+	.WORD	0			;LET A = C(REG) ; B = C(DEST)
+	.=.-2				;BACK UP TO PREVIOUS WORD
+	MOV	REG,-(SP)		;STACK = A
+	BIC	DEST,REG    		;REG = A & \B
+	BIC	(SP),DEST    		;DEST = B & \A
+	BIS	REG,DEST    		;DEST (B & \A) ! (A & \B)
+	MOV	(SP)+,REG    		;REG = A; STACK =
+	              .ENDC		;                END;
+	          .ENDC			;            END;
+	      .ENDC			;        END;
+	  .ENDC				;    END;
+	.ENDM $XOR
+	.MACRO $SUSPR PID
+
+	.IF NB PID
+	GNCDB PID,R0
+
+	.IFF
+	CLR	R0
+
+	.ENDC
+
+	EMT	^O270
+
+	.ENDM $SUSPR
+
+	.MACRO $SEXIT TRAP,PID,OPCODE
+
+	.NARG ARGNO.
+	KRTARG 3,ARGNO.
+	CNFL OPCODE,R0
+	GNCD2 TRAP,PID,R0
+	GNCD OPCODE,R1
+	EMT	^O266
+
+	.ENDM $SEXIT
+
+
+	.MACRO $REXIT TRAP,PID
+
+	.NARG ARGNO.
+	KRTARG 2,ARGNO.
+	GNCD2 TRAP,PID,R0
+	EMT	^O267
+
+	.ENDM $REXIT
+	.LIST
+  
